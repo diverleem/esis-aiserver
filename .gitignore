@@ -1,0 +1,17 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+*.env
+*.env.local
+
+# Captures (temporary violation photos)
+captures/*
+!captures/.gitkeep
+
+# Logs & temp files
+*.log
+.DS_Store
