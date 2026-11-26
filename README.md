@@ -11,7 +11,7 @@ Paket mandiri (*self-contained*) untuk inferensi Cloud GPU di RunPod menggunakan
 ## 2. Target Pemantauan & Sumber Stream
 - **Lab Riset Lantai 5** (Kamera ID: 38, `cam_lab_riset_lt_5`).
 - Standby 24/7 tanpa auto-skip ke lab lain.
-- **URL Stream Utama**: `https://stream.ucim.my.id/cam_lab_riset_lt_5/` (MediaMTX Mainstream Channel 101).
+- **URL Stream Utama**: `https://fdxuqgcmfo.a.pinggy.link/cam_lab_riset_lt_5/index.m3u8` (HLS Port 8888 Mainstream 2560x1440).
 
 ## 3. Cara Menjalankan
 
@@ -31,7 +31,7 @@ run_plan_a_terminal.bat
 
 ### C. Dengan Custom URL Stream:
 ```bash
-python main_runpod.py --stream-url https://stream.ucim.my.id/cam_lab_riset_lt_5/
+python main_runpod.py --stream-url https://fdxuqgcmfo.a.pinggy.link/cam_lab_riset_lt_5/index.m3u8
 ```
 
 ### D. Mode Mock Webcam Laptop:
