@@ -118,6 +118,22 @@ def report_violation_to_api(
     """
     Mengirim payload data insiden ke API Next.js /api/violations.
     """
+    # ATURAN PLAN B: Wajah WAJIB dikenal sebagai mahasiswa terdaftar
+    if not student_name or student_name in [
+        "Mahasiswa Tidak Terdaftar",
+        "Mahasiswa Tidak Terdaftar (Tidak Dikenal)",
+        "Mahasiswa Tidak Terdaftar (Wajah Tidak Terlihat)",
+        "Mahasiswa Tidak Terdaftar (Wajah Tidak Terdeteksi)",
+        "Tidak Dikenal",
+        "Unknown"
+    ]:
+        print(f" [REPORT CANCELLED] Wajah tidak terdaftar ({student_name}). Laporan pelanggaran dibatalkan.")
+        return {
+            "status_code": 400,
+            "success": False,
+            "message": "Pelanggaran dibatalkan: Pelaku tidak teridentifikasi sebagai mahasiswa terdaftar."
+        }
+
     payload = {
         "location": location,
         "evidence_image_url": evidence_image_url,
@@ -160,23 +176,50 @@ def report_violation_to_api(
                 "Content-Type": "application/json",
                 "Prefer": "return=representation"
             }
-            # Lengkapi data prodi/email jika nama mahasiswa terdeteksi
-            if student_name and student_name not in ["Mahasiswa Tidak Terdaftar", "Tidak Dikenal"]:
+
+            # 1. Lengkapi data NIM/prodi/email dari tabel mahasiswa
+            if not student_id or not payload.get("student_department"):
                 try:
                     m_res = requests.get(
-                        f"{supabase_url.rstrip('/')}/rest/v1/mahasiswa?name=ilike.*{student_name}*&limit=1",
+                        f"{supabase_url.rstrip('/')}/rest/v1/mahasiswa?nama_lengkap=ilike.*{student_name}*&limit=1",
                         headers=sb_headers,
-                        timeout=2.0
+                        timeout=3.0
                     )
                     if m_res.ok:
                         m_list = m_res.json()
                         if isinstance(m_list, list) and len(m_list) > 0:
                             m_info = m_list[0]
-                            payload["student_id"] = payload.get("student_id") or m_info.get("nim")
-                            payload["student_department"] = m_info.get("prodi") or m_info.get("jurusan")
+                            student_id = student_id or m_info.get("nim")
+                            payload["student_id"] = student_id
+                            payload["student_name"] = m_info.get("nama_lengkap", student_name)
+                            payload["student_department"] = m_info.get("jurusan") or m_info.get("prodi")
                             payload["student_email"] = m_info.get("email")
-                except Exception:
-                    pass
+                except Exception as e_m:
+                    print(f" [WARNING] Gagal lookup mahasiswa: {e_m}")
+
+            # 2. Syarat Cooldown 1 Jam untuk pelanggar yang sama
+            one_hour_ago = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+            try:
+                check_url = f"{supabase_url.rstrip('/')}/rest/v1/violations?created_at=gte.{one_hour_ago}&status=in.(pending,verified,verified_sp1,verified_sp2,verified_staff)&limit=1"
+                if payload.get("student_id"):
+                    check_url += f"&or=(student_id.eq.{payload['student_id']},student_name.ilike.*{student_name}*)"
+                else:
+                    check_url += f"&student_name=ilike.*{student_name}*"
+
+                cd_res = requests.get(check_url, headers=sb_headers, timeout=3.0)
+                if cd_res.ok:
+                    existing = cd_res.json()
+                    if isinstance(existing, list) and len(existing) > 0:
+                        prev = existing[0]
+                        print(f" [COOLDOWN 1 JAM] {student_name} sudah tercatat melanggar pada {prev.get('created_at')} (ID: {prev.get('id')}). Laporan baru diabaikan.")
+                        return {
+                            "status_code": 200,
+                            "success": True,
+                            "cooldown_active": True,
+                            "message": f"Cooldown 1 jam aktif untuk {student_name}. Laporan baru ditunda."
+                        }
+            except Exception as e_cd:
+                print(f" [WARNING] Gagal verifikasi cooldown Supabase: {e_cd}")
 
             payload["status"] = "pending"
             sb_res = requests.post(

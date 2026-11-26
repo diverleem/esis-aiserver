@@ -157,6 +157,70 @@ def start_telemetry_worker(url: str):
     t.start()
     return t
 
+STUDENT_CACHE: Dict[str, Dict] = {}
+STUDENT_COOLDOWNS: Dict[str, float] = {}  # nama_mahasiswa -> timestamp_terakhir_lapor
+
+def sync_students_with_supabase():
+    """Memuat data 38 mahasiswa terdaftar (Nama, NIM, Jurusan, Email) dari Supabase ke memory cache."""
+    global STUDENT_CACHE
+    supa_url = os.environ.get("SUPABASE_URL", "https://gzbiqnzwtbynnhpfsqso.supabase.co")
+    supa_key = os.environ.get("SUPABASE_KEY", "sb_publishable_eMibXfZffVVJtqfEh0hLJw_xeJ5EWKz")
+    if not supa_url or not supa_key:
+        return
+    try:
+        endpoint = f"{supa_url.rstrip('/')}/rest/v1/mahasiswa?select=nama_lengkap,nim,jurusan,email"
+        headers = {
+            "apikey": supa_key,
+            "Authorization": f"Bearer {supa_key}"
+        }
+        resp = requests.get(endpoint, headers=headers, timeout=4.0)
+        if resp.status_code == 200:
+            students = resp.json()
+            for s in students:
+                name = s.get("nama_lengkap", "").strip()
+                if name:
+                    STUDENT_CACHE[name.lower()] = {
+                        "nama_lengkap": name,
+                        "nim": s.get("nim", "").strip(),
+                        "jurusan": s.get("jurusan", "").strip(),
+                        "email": s.get("email", "").strip()
+                    }
+            print(f" * Berhasil memuat basis data {len(STUDENT_CACHE)} mahasiswa terdaftar dari Supabase.")
+    except Exception as e:
+        print(f" * [Info] Melewati sinkronisasi data mahasiswa Supabase ({e}).")
+
+def sync_recent_violations_cooldown():
+    """Menginisialisasi cooldown 1 jam dari riwayat pelanggaran terakhir di Supabase."""
+    global STUDENT_COOLDOWNS
+    supa_url = os.environ.get("SUPABASE_URL", "https://gzbiqnzwtbynnhpfsqso.supabase.co")
+    supa_key = os.environ.get("SUPABASE_KEY", "sb_publishable_eMibXfZffVVJtqfEh0hLJw_xeJ5EWKz")
+    if not supa_url or not supa_key:
+        return
+    try:
+        one_hour_ago = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        endpoint = f"{supa_url.rstrip('/')}/rest/v1/violations?created_at=gte.{one_hour_ago}&status=in.(pending,verified,verified_sp1,verified_sp2,verified_staff)&select=student_name,created_at"
+        headers = {
+            "apikey": supa_key,
+            "Authorization": f"Bearer {supa_key}"
+        }
+        resp = requests.get(endpoint, headers=headers, timeout=4.0)
+        if resp.status_code == 200:
+            viols = resp.json()
+            now_t = time.time()
+            for v in viols:
+                name = v.get("student_name")
+                if name and name not in ["Mahasiswa Tidak Terdaftar", "Tidak Dikenal"]:
+                    try:
+                        c_t = datetime.datetime.fromisoformat(v["created_at"].replace("Z", "+00:00")).timestamp()
+                        if c_t > STUDENT_COOLDOWNS.get(name, 0):
+                            STUDENT_COOLDOWNS[name] = c_t
+                    except Exception:
+                        STUDENT_COOLDOWNS[name] = now_t
+            if STUDENT_COOLDOWNS:
+                print(f" * Cooldown 1 jam aktif dari Supabase untuk: {', '.join(STUDENT_COOLDOWNS.keys())}")
+    except Exception as e:
+        print(f" * [Info] Melewati inisialisasi cooldown Supabase ({e}).")
+
 def sync_labs_with_supabase(labs: List[Dict]) -> List[Dict]:
     """
     Sinkronisasi konfigurasi kamera Lab Riset Lantai 5 langsung dari tabel streaming Supabase.
@@ -973,6 +1037,8 @@ def main():
     labs_list = PATROL_LABS.copy()
     if not args.no_supabase_sync:
         labs_list = sync_labs_with_supabase(labs_list)
+        sync_students_with_supabase()
+        sync_recent_violations_cooldown()
 
     cam = labs_list[0]
 
@@ -1244,19 +1310,43 @@ def main():
                 should_report = False
                 status_desc = ""
 
-                # KONDISI A: Wajah Terdaftar Teridentifikasi -> Langsung Lapor!
+                # ATURAN PLAN B:
+                # KONDISI A: Wajah Terdaftar Teridentifikasi -> Cek Cooldown 1 Jam!
                 if is_known_student:
-                    should_report = True
-                    status_desc = f"TERVERIFIKASI ({violator_name})"
-                # KONDISI B: Wajah Belum Dikenal dan Batas Buffer 3.0s Habis -> Lapor sebagai Mahasiswa Tidak Terdaftar
+                    last_viol_t = STUDENT_COOLDOWNS.get(violator_name, 0.0)
+                    elapsed = curr_t - last_viol_t
+                    if elapsed < 3600.0:
+                        sisa_menit = int((3600.0 - elapsed) // 60)
+                        sisa_detik = int((3600.0 - elapsed) % 60)
+                        print(f"\n [COOLDOWN 1 JAM AKTIF] Mahasiswa '{violator_name}' sudah tercatat melanggar ({int(elapsed//60)}m lalu).", flush=True)
+                        print(f"   -> Sisa waktu jeda cooldown: {sisa_menit} menit {sisa_detik} detik. Laporan baru tidak dikirim.\n", flush=True)
+                        pending_face_ident_start = None
+                        last_incident_capture_time = curr_t + 10.0
+                        should_report = False
+                    else:
+                        should_report = True
+                        status_desc = f"TERVERIFIKASI ({violator_name})"
+                # KONDISI B: Wajah Belum Dikenal dan Batas Waktu 3.0s Telah Habis -> BATALKAN! (Aturan Plan B)
                 elif (curr_t - pending_face_ident_start) >= 3.0:
-                    should_report = True
-                    violator_name = "Mahasiswa Tidak Terdaftar"
-                    status_desc = "TERVERIFIKASI (Mahasiswa Tidak Terdaftar)"
+                    print(f"\n [DIABAIKAN] Pelanggaran rokok terdeteksi di {cam['name']}, tetapi wajah pelaku")
+                    print("   tidak dikenal / tidak terdaftar sebagai mahasiswa setelah buffer 3 detik.")
+                    print("   -> Laporan dibatalkan sesuai aturan PLAN B (hanya mahasiswa terdaftar yang dilaporkan).\n", flush=True)
+                    pending_face_ident_start = None
+                    last_incident_capture_time = curr_t + 6.0
+                    should_report = False
 
                 if should_report:
                     pending_face_ident_start = None
                     last_incident_capture_time = curr_t
+                    # Catat Cooldown 1 Jam
+                    STUDENT_COOLDOWNS[violator_name] = curr_t
+
+                    # Resolusi NIM & Data Mahasiswa dari Cache
+                    st_info = STUDENT_CACHE.get(violator_name.lower(), {})
+                    resolved_student_id = st_info.get("nim")
+                    resolved_dept = st_info.get("jurusan")
+                    resolved_email = st_info.get("email")
+
                     now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                     capture_filename = f"pelanggaran_{cam['key']}_{now_str}.jpg"
                     capture_path = os.path.join(CAPTURES_DIR, capture_filename)
@@ -1277,7 +1367,8 @@ def main():
                     # 2. Bounding box perokok warna hijau
                     if smoker_person is not None:
                         spx, spy, spw, sph, *spconf = smoker_person
-                        p_lbl = f"[PEROKOK] {violator_name} ({violator_sim:.1f}%)" if is_known_student else f"[PEROKOK] {violator_name}"
+                        nim_label = f" [{resolved_student_id}]" if resolved_student_id else ""
+                        p_lbl = f"[PEROKOK] {violator_name}{nim_label} ({violator_sim:.1f}%)"
                         cv2.rectangle(evidence_frame, (spx, spy), (spx + spw, spy + sph), (0, 255, 0), 2)
                         (ptw, pth), _ = cv2.getTextSize(p_lbl, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
                         cv2.rectangle(evidence_frame, (spx, max(0, spy - pth - 10)), (spx + ptw + 10, max(pth + 10, spy)), (0, 180, 0), -1)
@@ -1292,7 +1383,8 @@ def main():
 
                     print("\n" + "=" * 80)
                     print(f" 🚨 [PELANGGARAN TERKONFIRMASI] {cam['name']}")
-                    print(f"    Pelaku    : {violator_name} ({violator_sim:.1f}%)")
+                    print(f"    Pelaku    : {violator_name} (NIM: {resolved_student_id or '-'})")
+                    print(f"    Kemiripan : {violator_sim:.1f}%")
                     print(f"    Durasi    : {smoking_duration:.1f} detik kontinu")
                     print(f"    Snapshot  : {capture_path}")
                     print("    Mengunggah bukti ke Cloudflare R2 & Mengirim Laporan ke Website API...")
@@ -1305,6 +1397,7 @@ def main():
                             "location": cam["name"],
                             "location_group": "Lantai 5 Gedung PLT",
                             "student_name": violator_name,
+                            "student_id": resolved_student_id,
                             "confidence_smoking": conf_smoke,
                             "face_similarity": sim_face,
                             "notes": f"Terdeteksi otomatis merokok selama {smoking_duration:.1f} detik via Plan A di {cam['name']}.",
