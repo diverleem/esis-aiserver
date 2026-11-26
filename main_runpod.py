@@ -1618,7 +1618,7 @@ def main():
                                     "student_id": resolved_student_id,
                                     "confidence_smoking": conf_smoke,
                                     "face_similarity": sim_face,
-                                    "notes": f"Terdeteksi otomatis merokok selama {cam_state.smoking_duration:.1f} detik via Plan A di {cam_info['name']}.",
+                                    "notes": "",
                                     "filename": capture_filename,
                                 },
                                 daemon=True
