@@ -1,18 +1,16 @@
-# E.S.I.S Plan A - RunPod Cloud GPU (Pure ONNX Pipeline - 4 Kamera Serentak)
+# E.S.I.S Plan A - RunPod Cloud GPU (Pure ONNX Pipeline - 2 Kamera Serentak)
 
-Paket mandiri (*self-contained*) untuk inferensi Cloud GPU di RunPod menggunakan **100% arsitektur ONNX Runtime** dengan akselerasi NVIDIA TensorRT / CUDAExecutionProvider, mendukung pemantauan **4 kamera serentak** dengan mekanisme **Gated Inference** hemat daya.
+Paket mandiri (*self-contained*) untuk inferensi Cloud GPU di RunPod menggunakan **100% arsitektur ONNX Runtime** dengan akselerasi NVIDIA TensorRT / CUDAExecutionProvider, mendukung pemantauan **2 kamera serentak (Lab Sistem Digital & Lab Riset Lantai 5)** dengan mekanisme **Gated Inference** hemat daya.
 
 ## 1. Arsitektur Model (Full ONNX)
-1. **Human Detection & Tracking**: `yolov8s.onnx` (atau `yolov8n.onnx`) dengan IoU & Centroid Tracker.
-2. **Cigarette Detection**: `Model_Rokok_Esis_New_Era_Grey_v3.onnx` (YOLO11s ONNX) atau `v2.onnx`.
+1. **Human Detection & Tracking**: `yolov8s.onnx` (atau `yolov8n.onnx`) dengan IoU & Centroid Tracker. Arsitektur: **YOLOv8s** (Ultralytics).
+2. **Cigarette Detection**: `Model_Rokok_Esis_New_Era_Grey_v3.onnx` (atau `v2.onnx`). Arsitektur: **YOLO11s** (Ultralytics YOLO11 Small, 640x640, class: Cigar).
 3. **Face Detection**: `face_detection_yunet_2023mar.onnx` (YuNet ONNX).
 4. **Face Embedding**: `facenet.onnx` (512-dim embedding) dicocokkan dengan basis data 38 mahasiswa (`data_wajah_facenet_mtcnn.npz`).
 
-## 2. Target 4 Kamera Pemantauan Serentak
-1. **Lab Riset Lantai 5** (ID: 38, path: `cam_lab_riset_lt_5`)
-2. **Lab OS** (ID: 36, path: `cam_lab_os`)
-3. **Lab Programming** (ID: 37, path: `cam_lab_programming`)
-4. **Lobby Lantai 5** (ID: 42, path: `cam_lobby_lt_5`)
+## 2. Target 2 Kamera Pemantauan Serentak
+1. **Lab Sistem Digital** (ID: 40, path: `cam_lab_sistem_digital`)
+2. **Lab Riset Lantai 5** (ID: 38, path: `cam_lab_riset_lt_5`)
 
 URL Stream Utama: HLS Port 8888 via Pinggy Pro `https://fdxuqgcmfo.a.pinggy.link/` (sinkron otomatis dari tabel Supabase `streaming`).
 
@@ -41,9 +39,9 @@ Atau dari root project:
 run_plan_a_terminal.bat
 ```
 
-### C. Monitor Video Wall Grid 2x2:
+### C. Monitor Video Wall (MJPEG Stream):
 Buka di browser saat server aktif:
-- Stream MJPEG Grid 2x2: `http://localhost:8001/stream`
+- Stream MJPEG 2 Kamera: `http://localhost:8001/stream`
 - Status API: `http://localhost:8001/status`
 - Snapshot: `http://localhost:8001/snapshot`
 - Telemetri Real-time: `http://localhost:8001/telemetry`

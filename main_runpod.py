@@ -114,7 +114,24 @@ PATH_DATABASE_NPZ = os.path.join(MODELS_DIR, "data_wajah_facenet_mtcnn.npz")
 DEFAULT_PINGGY_STREAM_BASE = os.environ.get("PINGGY_STREAM_BASE_URL", "https://fdxuqgcmfo.a.pinggy.link").rstrip("/")
 DEFAULT_STREAM_URL = f"{DEFAULT_PINGGY_STREAM_BASE}/cam_lab_riset_lt_5/index.m3u8"
 
-# Target 4 Kamera Patroli Serentak (Plan A Cloud GPU)
+# Target 2 Kamera Patroli Serentak (Plan A Cloud GPU)
+TARGET_LAB_SISDIG = {
+    "id": 40,
+    "key": "lab_sisdig",
+    "name": "Lab Sistem Digital",
+    "location_group": "Lantai 5 Gedung PLT",
+    "ecam_path": "ecam_lab_sistem_digital",
+    "cam_path": "cam_lab_sistem_digital",
+    "ip": "172.20.32.38",
+    "user": "admin",
+    "pass": "JOHVAF",
+    "channel_101": "rtsp://admin:JOHVAF@172.20.32.38:554/Streaming/Channels/101",
+    "channel_102": "rtsp://admin:JOHVAF@172.20.32.38:554/Streaming/Channels/102",
+    "hls_source": "https://fdxuqgcmfo.a.pinggy.link/cam_lab_sistem_digital",
+    "codec_info": "H.264 (AVC)",
+    "is_primary": False,
+}
+
 TARGET_LAB_RISET = {
     "id": 38,
     "key": "lab_riset_lt5",
@@ -132,58 +149,7 @@ TARGET_LAB_RISET = {
     "is_primary": True,
 }
 
-TARGET_LAB_OS = {
-    "id": 36,
-    "key": "lab_os",
-    "name": "Lab OS",
-    "location_group": "Lantai 5 Gedung PLT",
-    "ecam_path": "ecam_lab_os",
-    "cam_path": "cam_lab_os",
-    "ip": "172.20.32.59",
-    "user": "admin",
-    "pass": "YEYXIJ",
-    "channel_101": "rtsp://admin:YEYXIJ@172.20.32.59:554/Streaming/Channels/101",
-    "channel_102": "rtsp://admin:YEYXIJ@172.20.32.59:554/Streaming/Channels/102",
-    "hls_source": "https://fdxuqgcmfo.a.pinggy.link/cam_lab_os",
-    "codec_info": "H.265 (HEVC)",
-    "is_primary": False,
-}
-
-TARGET_LAB_PROGRAMMING = {
-    "id": 37,
-    "key": "lab_programming",
-    "name": "Lab Programming",
-    "location_group": "Lantai 5 Gedung PLT",
-    "ecam_path": "ecam_lab_programming",
-    "cam_path": "cam_lab_programming",
-    "ip": "172.20.32.26",
-    "user": "admin",
-    "pass": "MDZFQM",
-    "channel_101": "rtsp://admin:MDZFQM@172.20.32.26:554/Streaming/Channels/101",
-    "channel_102": "rtsp://admin:MDZFQM@172.20.32.26:554/Streaming/Channels/102",
-    "hls_source": "https://fdxuqgcmfo.a.pinggy.link/cam_lab_programming",
-    "codec_info": "H.265 (HEVC)",
-    "is_primary": False,
-}
-
-TARGET_LOBBY_LT5 = {
-    "id": 42,
-    "key": "lobby_lt5",
-    "name": "Lobby Lantai 5",
-    "location_group": "Lantai 5 Gedung PLT",
-    "ecam_path": "ecam_lobby_lt_5",
-    "cam_path": "cam_lobby_lt_5",
-    "ip": "172.20.32.60",
-    "user": "admin",
-    "pass": "BVPDCJ",
-    "channel_101": "rtsp://admin:BVPDCJ@172.20.32.60:554/Streaming/Channels/101",
-    "channel_102": "rtsp://admin:BVPDCJ@172.20.32.60:554/Streaming/Channels/102",
-    "hls_source": "https://fdxuqgcmfo.a.pinggy.link/cam_lobby_lt_5",
-    "codec_info": "H.265 (HEVC)",
-    "is_primary": False,
-}
-
-PATROL_LABS = [TARGET_LAB_RISET, TARGET_LAB_OS, TARGET_LAB_PROGRAMMING, TARGET_LOBBY_LT5]
+PATROL_LABS = [TARGET_LAB_SISDIG, TARGET_LAB_RISET]
 
 # Konfigurasi Endpoint Telemetri Web
 DEFAULT_TELEMETRY_URL = os.environ.get("WEB_TELEMETRY_URL", "http://localhost:3000/api/ai/live-feed")
@@ -306,6 +272,8 @@ def sync_labs_with_supabase(labs: List[Dict]) -> List[Dict]:
 
                     is_match = False
                     if target_id is not None and db_id == target_id:
+                        is_match = True
+                    elif "sisdig" in cam_key and ("sisdig" in db_label or "digital" in db_label or "sistem digital" in db_label):
                         is_match = True
                     elif "riset" in cam_key and ("riset" in db_label and ("5" in db_label or "lt 5" in db_label or "lantai 5" in db_label)):
                         is_match = True
@@ -934,8 +902,70 @@ class CameraAIState:
 
 
 def build_2x2_mosaic(camera_states: List[CameraAIState]) -> np.ndarray:
-    """Menggabungkan feed 4 kamera menjadi 1 layar grid 2x2 (1280x720) untuk monitoring MJPEG."""
+    """Menggabungkan feed kamera menjadi layar grid visual (1280x720) untuk monitoring MJPEG."""
     mosaic = np.zeros((720, 1280, 3), dtype=np.uint8)
+    mosaic[:] = (18, 20, 26)
+
+    # Khusus mode 2 kamera (Lab Sisdig & Lab Riset Lt 5): Tampilan side-by-side terpusat 16:9
+    if len(camera_states) == 2:
+        col_x = [(0, 640), (640, 1280)]
+        for idx in range(2):
+            st = camera_states[idx]
+            x1, x2 = col_x[idx]
+
+            f = st.annotated_frame if st.annotated_frame is not None else st.latest_frame
+            if f is not None and f.size > 0:
+                thumb = cv2.resize(f, (640, 360))
+            else:
+                thumb = np.zeros((360, 640, 3), dtype=np.uint8)
+                thumb[:] = (26, 28, 36)
+                cv2.putText(thumb, f"Menghubungkan {st.name}...", (120, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (100, 140, 220), 2)
+
+            # Letakkan video di tengah kolom (y: 180 s/d 540) agar rasio 16:9 tetap proporsional
+            mosaic[180:540, x1:x2] = thumb
+
+            # Header Panel Atas (y: 0..180)
+            cv2.rectangle(mosaic, (x1, 0), (x2, 180), (14, 16, 22), -1)
+            cv2.putText(mosaic, f"KAMERA [{idx+1}]: {st.name.upper()}", (x1 + 25, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.72, (255, 255, 255), 2)
+
+            hls_info = st.cam.get("cam_path", f"cam_{st.key}")
+            ip_info = st.cam.get("ip", "-")
+            cv2.putText(mosaic, f"IP: {ip_info}  |  Stream: {hls_info}", (x1 + 25, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (170, 175, 185), 1)
+
+            # Badge Status Warna
+            badge_color = (0, 180, 0)
+            badge_txt = st.status_badge
+            if "SLEEP" in badge_txt: badge_color = (0, 140, 255)
+            elif "ROKOK" in badge_txt: badge_color = (0, 0, 255)
+            elif "OFFLINE" in badge_txt: badge_color = (70, 70, 70)
+            elif "NIHIL" in badge_txt or "IDLE" in badge_txt: badge_color = (180, 140, 0)
+
+            (bw, bh), _ = cv2.getTextSize(badge_txt, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+            cv2.rectangle(mosaic, (x1 + 25, 110), (x1 + 35 + bw, 148), badge_color, -1)
+            cv2.putText(mosaic, badge_txt, (x1 + 30, 137), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+
+            conn_txt = "STATUS: ONLINE" if st.is_connected else "STATUS: OFFLINE"
+            conn_col = (0, 230, 0) if st.is_connected else (100, 100, 240)
+            cv2.putText(mosaic, conn_txt, (x1 + 55 + bw, 137), cv2.FONT_HERSHEY_SIMPLEX, 0.5, conn_col, 1)
+
+            # Footer Panel Bawah (y: 540..720)
+            cv2.rectangle(mosaic, (x1, 540), (x2, 720), (14, 16, 22), -1)
+            cv2.putText(mosaic, f"Keterangan AI: {st.status_desc}", (x1 + 25, 580), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (220, 220, 220), 1)
+
+            human_txt = f"Jumlah Manusia: {len(st.person_boxes)} orang" if st.has_person else "Jumlah Manusia: 0 orang"
+            cv2.putText(mosaic, human_txt, (x1 + 25, 615), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 230, 100) if st.has_person else (140, 140, 140), 1)
+
+            smoke_txt = f"Deteksi Rokok: AKTIF ({st.smoking_duration:.1f}s)" if st.is_smoking else "Deteksi Rokok: Standby (Nihil asap/rokok)"
+            cv2.putText(mosaic, smoke_txt, (x1 + 25, 650), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 140, 255) if st.is_smoking else (140, 140, 140), 1)
+
+            cv2.putText(mosaic, "E.S.I.S Plan A RunPod Cloud GPU  |  Gated Human Inference", (x1 + 25, 690), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (90, 100, 120), 1)
+
+        cv2.line(mosaic, (640, 0), (640, 720), (45, 55, 70), 2)
+        cv2.line(mosaic, (0, 180), (1280, 180), (35, 45, 60), 1)
+        cv2.line(mosaic, (0, 540), (1280, 540), (35, 45, 60), 1)
+        return mosaic
+
+    # Fallback 4 Kamera (Grid 2x2)
     quadrants = [
         (0, 360, 0, 640),      # Quadrant 1: Kiri Atas
         (0, 360, 640, 1280),   # Quadrant 2: Kanan Atas
@@ -962,13 +992,13 @@ def build_2x2_mosaic(camera_states: List[CameraAIState]) -> np.ndarray:
         badge_color = (0, 180, 0)
         badge_txt = st.status_badge
         if "SLEEP" in badge_txt:
-            badge_color = (0, 140, 255)  # Orange/Amber
+            badge_color = (0, 140, 255)
         elif "ROKOK" in badge_txt:
-            badge_color = (0, 0, 255)    # Merah
+            badge_color = (0, 0, 255)
         elif "OFFLINE" in badge_txt:
-            badge_color = (70, 70, 70)   # Abu-abu gelap
+            badge_color = (70, 70, 70)
         elif "NIHIL" in badge_txt or "IDLE" in badge_txt:
-            badge_color = (180, 140, 0)  # Kuning/Biru
+            badge_color = (180, 140, 0)
 
         (bw, bh), _ = cv2.getTextSize(badge_txt, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
         cv2.rectangle(thumb, (640 - bw - 20, 5), (632, 29), badge_color, -1)
@@ -986,8 +1016,8 @@ def build_2x2_mosaic(camera_states: List[CameraAIState]) -> np.ndarray:
 # 5. SHARED STATE & HTTP API SERVER (BACKGROUND DAEMON)
 # ------------------------------------------------------------------------------
 SHARED_RUNPOD_STATE = {
-    "service": "E.S.I.S Cloud Patrol Server (Plan A - 4 Cameras RunPod)",
-    "cameras": ["Lab Riset Lantai 5", "Lab OS", "Lab Programming", "Lobby Lantai 5"],
+    "service": "E.S.I.S Cloud Patrol Server (Plan A - 2 Cameras RunPod)",
+    "cameras": ["Lab Sistem Digital", "Lab Riset Lantai 5"],
     "fps": 0.0,
     "status": "online",
     "public_url": None,
@@ -1041,12 +1071,12 @@ class RunPodHTTPHandler(BaseHTTPRequestHandler):
                     "sleep_until": cs.sleep_until
                 })
             self._send_json(200, {
-                "service": "E.S.I.S Cloud Patrol Server (Plan A - 4 Cameras RunPod)",
+                "service": "E.S.I.S Cloud Patrol Server (Plan A - 2 Cameras RunPod)",
                 "status": "online",
                 "cameras": cam_summaries,
                 "fps": SHARED_RUNPOD_STATE.get("fps", 0.0),
                 "endpoints": {
-                    "stream": "/stream (Grid 2x2 MJPEG)",
+                    "stream": "/stream (Grid 2-Camera MJPEG)",
                     "health": "/health",
                     "snapshot": "/snapshot",
                     "telemetry": "/telemetry",
@@ -1064,8 +1094,8 @@ class RunPodHTTPHandler(BaseHTTPRequestHandler):
         if path in ["/health", "/api/health"]:
             self._send_json(200, {
                 "status": "online",
-                "service": "E.S.I.S Plan A RunPod (4 Cameras)",
-                "cameras_total": 4,
+                "service": "E.S.I.S Plan A RunPod (2 Cameras)",
+                "cameras_total": 2,
                 "fps": SHARED_RUNPOD_STATE.get("fps", 0.0),
                 "timestamp": datetime.datetime.now().isoformat()
             })
@@ -1168,7 +1198,7 @@ class RunPodHTTPHandler(BaseHTTPRequestHandler):
 # 6. MAIN PATROL LOOP (PLAN A RUNPOD CLOUD GPU - 4 KAMERA SERENTAK)
 # ------------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="E.S.I.S Plan A - RunPod Cloud GPU Terminal Patrol (4 Kamera Serentak)")
+    parser = argparse.ArgumentParser(description="E.S.I.S Plan A - RunPod Cloud GPU Terminal Patrol (2 Kamera: Lab Sisdig & Lab Riset Lt 5)")
     parser.add_argument("--stream-url", type=str, default="", help="Link streaming kamera primer jika ingin kustom")
     parser.add_argument("--channel", type=str, default="101", choices=["101", "102"], help="Channel stream: 101 (Mainstream Cam HD - Rekomendasi) atau 102 (Substream)")
     parser.add_argument("--mock", action="store_true", help="Gunakan mode mock simulasi")
@@ -1216,7 +1246,8 @@ def main():
 
     print("\n" + "=" * 82)
     print("   E.S.I.S (Electronic Smoking Identification System) - PLAN A (RUNPOD CLOUD GPU)")
-    print("   UPGRADE: DETEKSI 4 KAMERA SERENTAK + GATED INFERENCE (HEMAT SUMBER DAYA)")
+    print("   PATROLI 2 KAMERA: LAB SISTEM DIGITAL & LAB RISET LANTAI 5")
+    print("   FITUR: GATED HUMAN INFERENCE + VERIFIKASI IDENTITAS WAJAH (PLAN B RULES)")
     print("=" * 82)
     print(f" * Jumlah Kamera Target : {len(labs_list)} Kamera:")
     for idx, c in enumerate(labs_list):
@@ -1295,13 +1326,13 @@ def main():
     SMOKING_GRACE_PERIOD = 1.8
     SMOKING_COOLDOWN_SEC = 30.0
 
-    window_name = "E.S.I.S Plan A - 4 Cameras Monitor (RunPod Cloud GPU)"
+    window_name = "E.S.I.S Plan A - 2 Cameras Monitor (RunPod Cloud GPU)"
     if not is_headless:
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(window_name, 1280, 720)
 
     print("\n" + "=" * 82)
-    print("   PATROLI 4 KAMERA RUNPOD (PLAN A) BERJALAN AKTIF!")
+    print("   PATROLI 2 KAMERA RUNPOD (PLAN A) BERJALAN AKTIF!")
     print("   Tekan Ctrl+C di terminal untuk menghentikan patroli.")
     print("=" * 82 + "\n")
 
@@ -1667,7 +1698,7 @@ def main():
                 last_print_time = curr_t
                 now_hms = datetime.datetime.now().strftime("%H:%M:%S")
                 print("\n" + "=" * 82)
-                print(f" [PATROLI 4 KAMERA RUNPOD] Waktu: {now_hms} WIB | Total FPS: {current_fps:4.1f}")
+                print(f" [PATROLI 2 KAMERA RUNPOD] Waktu: {now_hms} WIB | Total FPS: {current_fps:4.1f}")
                 print("-" * 82)
                 for c_idx, c_st in enumerate(camera_states):
                     conn_str = "ONLINE " if c_st.is_connected else "OFFLINE"
