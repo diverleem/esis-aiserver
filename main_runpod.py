@@ -114,11 +114,12 @@ PATH_DATABASE_NPZ = os.path.join(MODELS_DIR, "data_wajah_facenet_mtcnn.npz")
 DEFAULT_PINGGY_STREAM_BASE = os.environ.get("PINGGY_STREAM_BASE_URL", "https://fdxuqgcmfo.a.pinggy.link").rstrip("/")
 DEFAULT_STREAM_URL = f"{DEFAULT_PINGGY_STREAM_BASE}/cam_lab_riset_lt_5/index.m3u8"
 
-# Target Kamera Utama: Lab Riset Lantai 5 (Mainstream Cam)
+# Target 4 Kamera Patroli Serentak (Plan A Cloud GPU)
 TARGET_LAB_RISET = {
     "id": 38,
     "key": "lab_riset_lt5",
     "name": "Lab Riset Lantai 5",
+    "location_group": "Lantai 5 Gedung PLT",
     "ecam_path": "ecam_lab_riset_lt_5",
     "cam_path": "cam_lab_riset_lt_5",
     "ip": "172.20.32.44",
@@ -127,10 +128,62 @@ TARGET_LAB_RISET = {
     "channel_101": "rtsp://admin:EYQMDK@172.20.32.44:554/Streaming/Channels/101",
     "channel_102": "rtsp://admin:EYQMDK@172.20.32.44:554/Streaming/Channels/102",
     "hls_source": "https://fdxuqgcmfo.a.pinggy.link/cam_lab_riset_lt_5",
-    "codec_info": "H.265 (HEVC)"
+    "codec_info": "H.265 (HEVC)",
+    "is_primary": True,
 }
 
-PATROL_LABS = [TARGET_LAB_RISET]
+TARGET_LAB_OS = {
+    "id": 36,
+    "key": "lab_os",
+    "name": "Lab OS",
+    "location_group": "Lantai 5 Gedung PLT",
+    "ecam_path": "ecam_lab_os",
+    "cam_path": "cam_lab_os",
+    "ip": "172.20.32.59",
+    "user": "admin",
+    "pass": "YEYXIJ",
+    "channel_101": "rtsp://admin:YEYXIJ@172.20.32.59:554/Streaming/Channels/101",
+    "channel_102": "rtsp://admin:YEYXIJ@172.20.32.59:554/Streaming/Channels/102",
+    "hls_source": "https://fdxuqgcmfo.a.pinggy.link/cam_lab_os",
+    "codec_info": "H.265 (HEVC)",
+    "is_primary": False,
+}
+
+TARGET_LAB_PROGRAMMING = {
+    "id": 37,
+    "key": "lab_programming",
+    "name": "Lab Programming",
+    "location_group": "Lantai 5 Gedung PLT",
+    "ecam_path": "ecam_lab_programming",
+    "cam_path": "cam_lab_programming",
+    "ip": "172.20.32.26",
+    "user": "admin",
+    "pass": "MDZFQM",
+    "channel_101": "rtsp://admin:MDZFQM@172.20.32.26:554/Streaming/Channels/101",
+    "channel_102": "rtsp://admin:MDZFQM@172.20.32.26:554/Streaming/Channels/102",
+    "hls_source": "https://fdxuqgcmfo.a.pinggy.link/cam_lab_programming",
+    "codec_info": "H.265 (HEVC)",
+    "is_primary": False,
+}
+
+TARGET_LOBBY_LT5 = {
+    "id": 42,
+    "key": "lobby_lt5",
+    "name": "Lobby Lantai 5",
+    "location_group": "Lantai 5 Gedung PLT",
+    "ecam_path": "ecam_lobby_lt_5",
+    "cam_path": "cam_lobby_lt_5",
+    "ip": "172.20.32.60",
+    "user": "admin",
+    "pass": "BVPDCJ",
+    "channel_101": "rtsp://admin:BVPDCJ@172.20.32.60:554/Streaming/Channels/101",
+    "channel_102": "rtsp://admin:BVPDCJ@172.20.32.60:554/Streaming/Channels/102",
+    "hls_source": "https://fdxuqgcmfo.a.pinggy.link/cam_lobby_lt_5",
+    "codec_info": "H.265 (HEVC)",
+    "is_primary": False,
+}
+
+PATROL_LABS = [TARGET_LAB_RISET, TARGET_LAB_OS, TARGET_LAB_PROGRAMMING, TARGET_LOBBY_LT5]
 
 # Konfigurasi Endpoint Telemetri Web
 DEFAULT_TELEMETRY_URL = os.environ.get("WEB_TELEMETRY_URL", "http://localhost:3000/api/ai/live-feed")
@@ -223,7 +276,8 @@ def sync_recent_violations_cooldown():
 
 def sync_labs_with_supabase(labs: List[Dict]) -> List[Dict]:
     """
-    Sinkronisasi konfigurasi kamera Lab Riset Lantai 5 langsung dari tabel streaming Supabase.
+    Sinkronisasi konfigurasi 4 kamera (Lab Riset Lt 5, Lab OS, Lab Programming, Lobby Lt 5)
+    langsung dari tabel streaming Supabase.
     """
     import requests
     supa_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", os.environ.get("SUPABASE_URL", "https://gzbiqnzwtbynnhpfsqso.supabase.co"))
@@ -241,35 +295,50 @@ def sync_labs_with_supabase(labs: List[Dict]) -> List[Dict]:
         resp = requests.get(endpoint, headers=headers, timeout=3.5)
         if resp.status_code == 200:
             db_cameras = resp.json()
-            synced = False
-            for db_cam in db_cameras:
-                db_id = db_cam.get("id")
-                db_label = (db_cam.get("label") or "").lower()
-                # Cek ID 38 atau label Lab Riset Lt 5
-                if db_id == 38 or ("riset" in db_label and ("5" in db_label or "lt 5" in db_label or "lantai 5" in db_label)):
-                    cam = labs[0]
-                    if db_cam.get("cam_path"):
-                        cam["cam_path"] = db_cam["cam_path"].strip()
-                    if db_cam.get("ecam_path"):
-                        cam["ecam_path"] = db_cam["ecam_path"].strip()
-                    if db_cam.get("cam_source"):
-                        cam["channel_101"] = db_cam["cam_source"].strip()
-                    if db_cam.get("ecam_source"):
-                        cam["channel_102"] = db_cam["ecam_source"].strip()
-                    if db_cam.get("ip_address"):
-                        cam["ip"] = db_cam["ip_address"].strip()
-                    if db_cam.get("username_rtsp"):
-                        cam["user"] = db_cam["username_rtsp"].strip()
-                    if db_cam.get("password_rtsp"):
-                        cam["pass"] = db_cam["password_rtsp"].strip()
-                    if db_cam.get("hls_source"):
-                        raw_hls = db_cam["hls_source"].strip()
-                        # Prioritaskan cam_ untuk streaming mainstream
-                        cam["hls_source"] = raw_hls.replace("ecam_", "cam_") if "ecam_" in raw_hls else raw_hls
-                    synced = True
-                    break
-            if synced:
-                print(f" * Berhasil sinkronisasi Lab Riset Lantai 5 dari Supabase (cam_path: {labs[0].get('cam_path')}).")
+            synced_count = 0
+            for cam in labs:
+                cam_key = cam.get("key", "").lower()
+                target_id = cam.get("id")
+
+                for db_cam in db_cameras:
+                    db_id = db_cam.get("id")
+                    db_label = (db_cam.get("label") or "").lower()
+
+                    is_match = False
+                    if target_id is not None and db_id == target_id:
+                        is_match = True
+                    elif "riset" in cam_key and ("riset" in db_label and ("5" in db_label or "lt 5" in db_label or "lantai 5" in db_label)):
+                        is_match = True
+                    elif "os" in cam_key and ("lab os" in db_label or db_label.endswith(" os") or db_label == "os"):
+                        is_match = True
+                    elif "programming" in cam_key and "programming" in db_label:
+                        is_match = True
+                    elif "lobby" in cam_key and ("lobby" in db_label and ("5" in db_label or "lt 5" in db_label or "lantai 5" in db_label)):
+                        is_match = True
+
+                    if is_match:
+                        if db_cam.get("cam_path"):
+                            cam["cam_path"] = db_cam["cam_path"].strip()
+                        if db_cam.get("ecam_path"):
+                            cam["ecam_path"] = db_cam["ecam_path"].strip()
+                        if db_cam.get("cam_source"):
+                            cam["channel_101"] = db_cam["cam_source"].strip()
+                        if db_cam.get("ecam_source"):
+                            cam["channel_102"] = db_cam["ecam_source"].strip()
+                        if db_cam.get("ip_address"):
+                            cam["ip"] = db_cam["ip_address"].strip()
+                        if db_cam.get("username_rtsp"):
+                            cam["user"] = db_cam["username_rtsp"].strip()
+                        if db_cam.get("password_rtsp"):
+                            cam["pass"] = db_cam["password_rtsp"].strip()
+                        if db_cam.get("location_group"):
+                            cam["location_group"] = db_cam["location_group"].strip()
+                        if db_cam.get("hls_source"):
+                            raw_hls = db_cam["hls_source"].strip()
+                            cam["hls_source"] = raw_hls.replace("ecam_", "cam_") if "ecam_" in raw_hls else raw_hls
+                        synced_count += 1
+                        break
+            print(f" * Berhasil sinkronisasi {synced_count}/{len(labs)} kamera target dari Supabase.")
     except Exception as e:
         print(f" * [Info] Melewati sinkronisasi Supabase ({e}), menggunakan konfigurasi default.")
     return labs
@@ -277,56 +346,43 @@ def sync_labs_with_supabase(labs: List[Dict]) -> List[Dict]:
 def resolve_camera_urls(cam: Dict, stream_mode: str = "pinggy", pinggy_base: Optional[str] = None, channel: str = "101", custom_stream_url: Optional[str] = None) -> List[str]:
     """
     Menyusun daftar prioritas URL stream untuk kamera yang bersangkutan:
-    1. Custom stream URL (--stream-url jika diberikan pengguna lewat argumen CLI)
-    2. Endpoint MediaMTX stream.ucim.my.id (Mainstream Cam: https://stream.ucim.my.id/cam_lab_riset_lt_5/)
-    3. HLS Source dari Supabase / Base URL
-    4. Fallback ke direct LAN RTSP Channel 101
+    1. Custom stream URL (--stream-url jika diberikan pengguna lewat argumen CLI untuk kamera primer)
+    2. HLS Stream Port 8888 via Pinggy Pro fdxuqgcmfo.a.pinggy.link
+    3. HLS Source dari database Supabase / Pinggy Base URL
+    4. Fallback ke direct LAN RTSP Channel 101/102
     """
     candidates = []
 
-    # 1. Custom URL langsung dari argumen CLI
-    if custom_stream_url:
+    # 1. Custom URL langsung dari argumen CLI (hanya jika target adalah kamera primer atau spesifik)
+    if custom_stream_url and cam.get("is_primary", False):
         candidates.append(custom_stream_url.strip())
 
     # Path mainstream Cam (default channel 101)
     path = cam.get("cam_path") if channel == "101" else cam.get("ecam_path", cam.get("cam_path"))
     if not path:
-        path = "cam_lab_riset_lt_5" if channel == "101" else "ecam_lab_riset_lt_5"
+        path = f"cam_{cam.get('key', 'camera')}"
 
     alt_path = path.replace("_lt_5", "_lt5") if "_lt_5" in path else path.replace("_lt5", "_lt_5")
 
-    # 2. Prioritas Utama: HLS Stream Port 8888 via Pinggy Pro fdxuqgcmfo.a.pinggy.link
-    candidates.append(f"https://fdxuqgcmfo.a.pinggy.link/{path}/index.m3u8")
-    candidates.append(f"https://fdxuqgcmfo.a.pinggy.link/{alt_path}/index.m3u8")
-    candidates.append(f"https://fdxuqgcmfo.a.pinggy.link/{path}")
+    # 2. Prioritas Utama: HLS Stream Port 8888 via Pinggy Pro
+    base_pinggy = (pinggy_base or DEFAULT_PINGGY_STREAM_BASE).rstrip("/")
+    candidates.append(f"{base_pinggy}/{path}/index.m3u8")
+    candidates.append(f"{base_pinggy}/{alt_path}/index.m3u8")
+    candidates.append(f"{base_pinggy}/{path}")
 
-    # 3. Kandidat dari Base URL konfigurasi
-    if pinggy_base and stream_mode == "pinggy":
-        base = pinggy_base.rstrip("/")
-        if base.startswith("rtsp://"):
-            candidates.append(f"{base}/{path}")
-        else:
-            if not base.startswith("http://") and not base.startswith("https://"):
-                base = f"https://{base}"
-            candidates.append(f"{base}/{path}/index.m3u8")
-            candidates.append(f"{base}/{alt_path}/index.m3u8")
-            candidates.append(f"{base}/{path}")
-
-    # 4. Kandidat dari field hls_source Supabase
+    # 3. Kandidat dari field hls_source Supabase
     if cam.get("hls_source") and stream_mode == "pinggy":
         h_url = cam["hls_source"].strip()
         if channel == "101" and "ecam_" in h_url:
             h_url_cam = h_url.replace("ecam_", "cam_")
-            candidates.append(f"{h_url_cam}/")
             candidates.append(f"{h_url_cam}/index.m3u8")
-            candidates.append(f"{h_url_cam}")
+            candidates.append(f"{h_url_cam}/")
+            candidates.append(h_url_cam)
+        candidates.append(f"{h_url}/index.m3u8")
+        candidates.append(f"{h_url}/")
         candidates.append(h_url)
-        if not h_url.endswith("/"):
-            candidates.append(f"{h_url}/")
-        if not h_url.endswith(".m3u8") and not h_url.endswith(".mp4"):
-            candidates.append(f"{h_url}/index.m3u8")
 
-    # 5. Fallback ke RTSP Lokal Kampus
+    # 4. Fallback ke RTSP Lokal Kampus
     local_rtsp = cam.get("channel_101") if channel == "101" else cam.get("channel_102")
     if local_rtsp:
         candidates.append(local_rtsp)
@@ -697,17 +753,19 @@ class FaceRecognitionPipeline:
         return faces_found
 
 # ------------------------------------------------------------------------------
-# 3. STREAM WORKER (PINGGY MAINSTREAM CAM LOADER)
+# 3. MULTI-CAMERA STREAM WORKERS (PINGGY MAINSTREAM CAM LOADERS)
 # ------------------------------------------------------------------------------
-class StreamWorker:
-    def __init__(self, labs: List[Dict], channel: str = "101", mock: bool = False, stream_mode: str = "pinggy", pinggy_base: Optional[str] = None, custom_stream_url: Optional[str] = None):
-        self.labs = labs
+class SingleCameraCapture:
+    """Thread independen per kamera untuk mengambil video feed secara non-blocking."""
+    def __init__(self, cam_info: Dict, channel: str = "101", mock: bool = False, stream_mode: str = "pinggy", pinggy_base: Optional[str] = None, custom_url: Optional[str] = None):
+        self.cam = cam_info
+        self.name = cam_info.get("name", "Camera")
+        self.key = cam_info.get("key", "cam")
         self.channel = channel
         self.is_mock = mock
         self.stream_mode = stream_mode
         self.pinggy_base = pinggy_base
-        self.custom_stream_url = custom_stream_url
-        self.current_idx = 0
+        self.custom_url = custom_url
         self.cap: Optional[cv2.VideoCapture] = None
         self.latest_frame: Optional[np.ndarray] = None
         self.is_connected = False
@@ -729,7 +787,7 @@ class StreamWorker:
 
     def get_frame(self) -> Tuple[bool, Optional[np.ndarray], Dict]:
         with self.lock:
-            return self.is_connected, (self.latest_frame.copy() if self.latest_frame is not None else None), self.labs[self.current_idx]
+            return self.is_connected, (self.latest_frame.copy() if self.latest_frame is not None else None), self.cam
 
     def stop(self):
         self.running = False
@@ -740,40 +798,25 @@ class StreamWorker:
     def _run(self):
         while self.running:
             if self.is_mock:
-                if self.cap is None or not self.cap.isOpened():
-                    self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY)
-                got_frame = False
-                if self.cap and self.cap.isOpened():
-                    ret, frame = self.cap.read()
-                    if ret and frame is not None:
-                        got_frame = True
-                        with self.lock:
-                            self.latest_frame = frame
-                            self.is_connected = True
-                if not got_frame:
-                    synth = np.zeros((720, 1280, 3), dtype=np.uint8)
-                    synth[:] = (28, 24, 20)
-                    now_str = datetime.datetime.now().strftime("%H:%M:%S")
-                    lab_info = self.labs[self.current_idx]
-                    cv2.putText(synth, f"[RUNPOD CLOUD MOCK - {lab_info['name']}]", (80, 260),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.85, (0, 220, 255), 2)
-                    cv2.putText(synth, f"Waktu Cloud: {now_str} WIB | Status: Standby Simulasi", (80, 310),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.65, (200, 200, 200), 2)
-                    cv2.putText(synth, f"Stream Mode: {self.stream_mode.upper()} | Base Pinggy: {self.pinggy_base}", (80, 360),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 120), 1)
-                    with self.lock:
-                        self.latest_frame = synth
-                        self.is_connected = True
+                synth = np.zeros((720, 1280, 3), dtype=np.uint8)
+                synth[:] = (26, 24, 22)
+                now_str = datetime.datetime.now().strftime("%H:%M:%S")
+                cv2.putText(synth, f"[MOCK SIMULASI - {self.name}]", (80, 260),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.85, (0, 220, 255), 2)
+                cv2.putText(synth, f"Waktu: {now_str} WIB | Status: Standby Simulasi", (80, 310),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.65, (200, 200, 200), 2)
+                with self.lock:
+                    self.latest_frame = synth
+                    self.is_connected = True
                 time.sleep(0.04)
                 continue
 
-            cam = self.labs[self.current_idx]
             urls_to_try = resolve_camera_urls(
-                cam,
+                self.cam,
                 stream_mode=self.stream_mode,
                 pinggy_base=self.pinggy_base,
                 channel=self.channel,
-                custom_stream_url=self.custom_stream_url
+                custom_stream_url=self.custom_url
             )
 
             if self.cap is None or not self.cap.isOpened():
@@ -791,7 +834,7 @@ class StreamWorker:
                                     self.latest_frame = f
                                     self.is_connected = True
                                 opened = True
-                                print(f"\n [STREAM TERSAMBUNG] {cam['name']} via: {try_url}\n")
+                                print(f" [TERHUBUNG] {self.name} via: {try_url}", flush=True)
                                 break
                             else:
                                 cap.release()
@@ -821,22 +864,137 @@ class StreamWorker:
                 with self.lock: self.is_connected = False
                 time.sleep(0.5)
 
+
+class MultiCameraStreamWorker:
+    """Pengelola thread video feed untuk ke-4 kamera target secara serentak."""
+    def __init__(self, labs: List[Dict], channel: str = "101", mock: bool = False, stream_mode: str = "pinggy", pinggy_base: Optional[str] = None, custom_stream_url: Optional[str] = None):
+        self.labs = labs
+        self.workers: List[SingleCameraCapture] = []
+        for idx, cam in enumerate(labs):
+            c_url = custom_stream_url if (idx == 0 and custom_stream_url) else None
+            self.workers.append(SingleCameraCapture(
+                cam_info=cam,
+                channel=channel,
+                mock=mock,
+                stream_mode=stream_mode,
+                pinggy_base=pinggy_base,
+                custom_url=c_url
+            ))
+
+    def set_pinggy_base(self, new_base: str):
+        for w in self.workers:
+            w.set_pinggy_base(new_base)
+
+    def get_frame(self, idx: int) -> Tuple[bool, Optional[np.ndarray], Dict]:
+        if 0 <= idx < len(self.workers):
+            return self.workers[idx].get_frame()
+        return False, None, {}
+
+    def get_all_frames(self) -> List[Tuple[bool, Optional[np.ndarray], Dict]]:
+        return [w.get_frame() for w in self.workers]
+
+    def stop(self):
+        for w in self.workers:
+            w.stop()
+
+
 # ------------------------------------------------------------------------------
-# 4. SHARED STATE & HTTP API SERVER (BACKGROUND DAEMON)
+# 4. PER-CAMERA AI STATE & 2x2 MOSAIC VISUALIZER
+# ------------------------------------------------------------------------------
+class CameraAIState:
+    """Melacak status deteksi manusia, deteksi rokok, dan timer tidur per kamera."""
+    def __init__(self, cam_info: Dict):
+        self.cam = cam_info
+        self.name = cam_info.get("name", "Camera")
+        self.key = cam_info.get("key", "cam")
+
+        # Human Gate & 1-Minute Sleep Rule
+        self.has_person = False
+        self.person_boxes: list = []
+        self.no_person_since: Optional[float] = None
+        self.sleep_until: float = 0.0  # Jika curr_t < sleep_until -> Model Rokok & Wajah dimatikan (1 menit)
+
+        # Smoking & Face Identification State
+        self.smoking_start_time: Optional[float] = None
+        self.last_smoking_seen_time: Optional[float] = None
+        self.last_known_smoke_event = None
+        self.pending_face_ident_start: Optional[float] = None
+        self.smoking_duration: float = 0.0
+        self.last_incident_capture_time: float = 0.0
+        self.is_smoking = False
+        self.active_violator_name: Optional[str] = None
+        self.active_violator_sim: float = 0.0
+
+        # Visual & Telemetri
+        self.annotated_frame: Optional[np.ndarray] = None
+        self.latest_frame: Optional[np.ndarray] = None
+        self.status_badge: str = "MEMUAT"
+        self.status_desc: str = "Menyiapkan stream"
+        self.is_connected = False
+
+
+def build_2x2_mosaic(camera_states: List[CameraAIState]) -> np.ndarray:
+    """Menggabungkan feed 4 kamera menjadi 1 layar grid 2x2 (1280x720) untuk monitoring MJPEG."""
+    mosaic = np.zeros((720, 1280, 3), dtype=np.uint8)
+    quadrants = [
+        (0, 360, 0, 640),      # Quadrant 1: Kiri Atas
+        (0, 360, 640, 1280),   # Quadrant 2: Kanan Atas
+        (360, 720, 0, 640),    # Quadrant 3: Kiri Bawah
+        (360, 720, 640, 1280)  # Quadrant 4: Kanan Bawah
+    ]
+
+    for idx in range(min(4, len(camera_states))):
+        st = camera_states[idx]
+        y1, y2, x1, x2 = quadrants[idx]
+        f = st.annotated_frame if st.annotated_frame is not None else st.latest_frame
+        if f is not None and f.size > 0:
+            thumb = cv2.resize(f, (640, 360))
+        else:
+            thumb = np.zeros((360, 640, 3), dtype=np.uint8)
+            thumb[:] = (22, 22, 28)
+            cv2.putText(thumb, f"Menghubungkan {st.name}...", (120, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (100, 100, 200), 2)
+
+        # Header OSD Kotak Kamera
+        cv2.rectangle(thumb, (0, 0), (640, 34), (12, 16, 22), -1)
+        cv2.putText(thumb, f"[{idx+1}] {st.name}", (10, 23), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+
+        # Badge Status Warna
+        badge_color = (0, 180, 0)
+        badge_txt = st.status_badge
+        if "SLEEP" in badge_txt:
+            badge_color = (0, 140, 255)  # Orange/Amber
+        elif "ROKOK" in badge_txt:
+            badge_color = (0, 0, 255)    # Merah
+        elif "OFFLINE" in badge_txt:
+            badge_color = (70, 70, 70)   # Abu-abu gelap
+        elif "NIHIL" in badge_txt or "IDLE" in badge_txt:
+            badge_color = (180, 140, 0)  # Kuning/Biru
+
+        (bw, bh), _ = cv2.getTextSize(badge_txt, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
+        cv2.rectangle(thumb, (640 - bw - 20, 5), (632, 29), badge_color, -1)
+        cv2.putText(thumb, badge_txt, (640 - bw - 15, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
+
+        mosaic[y1:y2, x1:x2] = thumb
+
+    # Garis Pembatas Silang 2x2
+    cv2.line(mosaic, (640, 0), (640, 720), (50, 60, 75), 2)
+    cv2.line(mosaic, (0, 360), (1280, 360), (50, 60, 75), 2)
+    return mosaic
+
+
+# ------------------------------------------------------------------------------
+# 5. SHARED STATE & HTTP API SERVER (BACKGROUND DAEMON)
 # ------------------------------------------------------------------------------
 SHARED_RUNPOD_STATE = {
-    "service": "E.S.I.S Cloud Patrol Server (Plan A - RunPod)",
-    "current_lab": "Lab Riset Lantai 5",
-    "cam_idx": 0,
+    "service": "E.S.I.S Cloud Patrol Server (Plan A - 4 Cameras RunPod)",
+    "cameras": ["Lab Riset Lantai 5", "Lab OS", "Lab Programming", "Lobby Lantai 5"],
     "fps": 0.0,
-    "has_person": False,
-    "is_smoking": False,
-    "smoking_duration": 0.0,
     "status": "online",
     "public_url": None,
     "stream_worker": None,
     "latest_frame": None,
     "annotated_frame": None,
+    "camera_states": [],
     "telemetry": {}
 }
 
@@ -870,13 +1028,25 @@ class RunPodHTTPHandler(BaseHTTPRequestHandler):
             st.pop("latest_frame", None)
             st.pop("annotated_frame", None)
             st.pop("stream_worker", None)
+            cam_summaries = []
+            for cs in SHARED_RUNPOD_STATE.get("camera_states", []):
+                cam_summaries.append({
+                    "name": cs.name,
+                    "key": cs.key,
+                    "is_connected": cs.is_connected,
+                    "has_person": cs.has_person,
+                    "is_smoking": cs.is_smoking,
+                    "status_badge": cs.status_badge,
+                    "status_desc": cs.status_desc,
+                    "sleep_until": cs.sleep_until
+                })
             self._send_json(200, {
-                "service": "E.S.I.S Cloud Patrol Server (Plan A - RunPod)",
+                "service": "E.S.I.S Cloud Patrol Server (Plan A - 4 Cameras RunPod)",
                 "status": "online",
-                "target_lab": "Lab Riset Lantai 5",
-                "patrol_state": st,
+                "cameras": cam_summaries,
+                "fps": SHARED_RUNPOD_STATE.get("fps", 0.0),
                 "endpoints": {
-                    "stream": "/stream",
+                    "stream": "/stream (Grid 2x2 MJPEG)",
                     "health": "/health",
                     "snapshot": "/snapshot",
                     "telemetry": "/telemetry",
@@ -887,32 +1057,24 @@ class RunPodHTTPHandler(BaseHTTPRequestHandler):
             return
 
         if path in ["/telemetry", "/api/telemetry"]:
-            tel = SHARED_RUNPOD_STATE.get("telemetry", {
-                "current_lab": "Lab Riset Lantai 5",
-                "cam_key": "lab_riset_lt5",
-                "ecam_path": "cam_lab_riset_lt_5",
-                "fps": SHARED_RUNPOD_STATE.get("fps", 0.0),
-                "boxes": [],
-                "is_smoking": False,
-                "smoking_duration": 0.0,
-                "has_person": False,
-                "status": "online"
-            })
+            tel = SHARED_RUNPOD_STATE.get("telemetry", {})
             self._send_json(200, tel)
             return
 
         if path in ["/health", "/api/health"]:
             self._send_json(200, {
                 "status": "online",
-                "service": "E.S.I.S Plan A RunPod",
-                "lab": "Lab Riset Lantai 5",
+                "service": "E.S.I.S Plan A RunPod (4 Cameras)",
+                "cameras_total": 4,
                 "fps": SHARED_RUNPOD_STATE.get("fps", 0.0),
                 "timestamp": datetime.datetime.now().isoformat()
             })
             return
 
         if path == "/snapshot":
-            frame = SHARED_RUNPOD_STATE.get("latest_frame")
+            frame = SHARED_RUNPOD_STATE.get("annotated_frame")
+            if frame is None:
+                frame = SHARED_RUNPOD_STATE.get("latest_frame")
             if frame is not None:
                 ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 if ok:
@@ -923,7 +1085,7 @@ class RunPodHTTPHandler(BaseHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(buf.tobytes())
                     return
-            self._send_json(503, {"error": "Snapshot frame belum tersedia."})
+            self._send_json(503, {"error": "Snapshot grid 2x2 belum tersedia."})
             return
 
         if path == "/stream":
@@ -935,8 +1097,6 @@ class RunPodHTTPHandler(BaseHTTPRequestHandler):
             try:
                 while True:
                     frame = SHARED_RUNPOD_STATE.get("annotated_frame")
-                    if frame is None:
-                        frame = SHARED_RUNPOD_STATE.get("latest_frame")
                     if frame is not None:
                         ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
                         if ok:
@@ -999,19 +1159,19 @@ class RunPodHTTPHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     self._send_json(500, {"error": str(e)})
             else:
-                self._send_json(503, {"error": "StreamWorker belum siap."})
+                self._send_json(503, {"error": "MultiCameraStreamWorker belum siap."})
             return
 
         self._send_json(404, {"error": f"Endpoint POST {path} tidak ditemukan."})
 
 # ------------------------------------------------------------------------------
-# 5. MAIN PATROL LOOP (PLAN A RUNPOD CLOUD GPU - LAB RISET LT 5)
+# 6. MAIN PATROL LOOP (PLAN A RUNPOD CLOUD GPU - 4 KAMERA SERENTAK)
 # ------------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="E.S.I.S Plan A - RunPod Cloud GPU Terminal Patrol (Lab Riset Lantai 5)")
-    parser.add_argument("--stream-url", type=str, default="https://fdxuqgcmfo.a.pinggy.link/cam_lab_riset_lt_5/index.m3u8", help="Link streaming langsung (default: https://fdxuqgcmfo.a.pinggy.link/cam_lab_riset_lt_5/index.m3u8)")
+    parser = argparse.ArgumentParser(description="E.S.I.S Plan A - RunPod Cloud GPU Terminal Patrol (4 Kamera Serentak)")
+    parser.add_argument("--stream-url", type=str, default="", help="Link streaming kamera primer jika ingin kustom")
     parser.add_argument("--channel", type=str, default="101", choices=["101", "102"], help="Channel stream: 101 (Mainstream Cam HD - Rekomendasi) atau 102 (Substream)")
-    parser.add_argument("--mock", action="store_true", help="Gunakan mode mock webcam simulasi")
+    parser.add_argument("--mock", action="store_true", help="Gunakan mode mock simulasi")
     parser.add_argument("--stream-mode", type=str, default="pinggy", choices=["pinggy", "rtsp", "mock"], help="Sumber streaming: pinggy / publik (Default), rtsp (LAN langsung), atau mock")
     parser.add_argument("--pinggy-stream-base", type=str, default=DEFAULT_PINGGY_STREAM_BASE, help="Base URL Streaming MediaMTX (default: https://fdxuqgcmfo.a.pinggy.link)")
     parser.add_argument("--no-supabase-sync", action="store_true", help="Lewati sinkronisasi kamera dari database Supabase")
@@ -1020,9 +1180,10 @@ def main():
     parser.add_argument("--conf-smoke", type=float, default=0.25, help="Ambang batas confidence deteksi rokok (default: 0.25)")
     parser.add_argument("--conf-person", type=float, default=0.20, help="Ambang batas confidence deteksi manusia (default: 0.20)")
     parser.add_argument("--smoke-sec", type=float, default=3.0, help="Durasi rokok kontinu sebelum insiden terkonfirmasi (default: 3.0 detik)")
+    parser.add_argument("--idle-sleep-sec", type=float, default=10.0, help="Durasi tanpa manusia sebelum model rokok & wajah dimatikan (default: 10.0 detik)")
+    parser.add_argument("--sleep-duration-sec", type=float, default=60.0, help="Durasi tidur model rokok & wajah saat tidak ada manusia (default: 60.0 detik)")
     parser.add_argument("--headless", action="store_true", default=True, help="Jalankan di terminal tanpa GUI (Default True)")
     parser.add_argument("--gui", action="store_true", help="Buka jendela OpenCV display (jika ada monitor X11/desktop)")
-    parser.add_argument("--test-sim-sec", type=int, default=0, help="Picu simulasi pelanggaran otomatis setelah N detik")
     parser.add_argument("--api-port", type=int, default=8001, help="Port HTTP API latar belakang (default: 8001)")
     parser.add_argument("--pinggy", action="store_true", default=True, help="Nyalakan SSH Reverse Tunnel Pinggy untuk akses API publik (default: True)")
     parser.add_argument("--no-pinggy", action="store_true", help="Matikan Pinggy Tunnel")
@@ -1033,21 +1194,19 @@ def main():
 
     is_headless = not args.gui if args.gui else args.headless
 
-    # Sinkronisasi kamera dari database Supabase jika diizinkan
+    # Sinkronisasi ke-4 kamera dan data mahasiswa dari Supabase
     labs_list = PATROL_LABS.copy()
     if not args.no_supabase_sync:
         labs_list = sync_labs_with_supabase(labs_list)
         sync_students_with_supabase()
         sync_recent_violations_cooldown()
 
-    cam = labs_list[0]
-
-    # Resolusi path model manusia
+    # Resolusi model deteksi manusia
     person_model_path = CANDIDATE_PERSON_MODELS.get(args.person_model, PATH_YOLO_PERSON_ONNX)
     if not os.path.exists(person_model_path):
         person_model_path = os.path.join(MODELS_DIR, "yolov8n.onnx")
 
-    # Resolusi path model rokok (Default Murni ONNX)
+    # Resolusi model rokok ONNX
     if os.path.exists(args.cigar_model):
         cigar_model_path = os.path.abspath(args.cigar_model)
     else:
@@ -1055,59 +1214,63 @@ def main():
         if not os.path.exists(cigar_model_path):
             cigar_model_path = PATH_YOLO_ROKOK_ONNX
 
-    print("=" * 80)
-    print("   E.S.I.S (Electronic Smoking Identification System) - PLAN A (RUNPOD TERMINAL)")
-    print("=" * 80)
-    print(f" * Target Kamera        : {cam['name']} (ID: {cam.get('id', 38)})")
-    print(f" * Path Stream Cam      : {cam.get('cam_path')} (Mainstream Cam)")
-    print(f" * Mode Stream          : {args.stream_mode.upper()}")
-    print(f" * Pinggy Stream Base   : {args.pinggy_stream_base}")
-    if args.stream_url:
-        print(f" * Direct Stream URL    : {args.stream_url}")
+    print("=" * 82)
+    print("   E.S.I.S (Electronic Smoking Identification System) - PLAN A (RUNPOD CLOUD GPU)")
+    print("   UPGRADE: DETEKSI 4 KAMERA SERENTAK + GATED INFERENCE (HEMAT SUMBER DAYA)")
+    print("=" * 82)
+    print(f" * Jumlah Kamera Target : {len(labs_list)} Kamera:")
+    for idx, c in enumerate(labs_list):
+        print(f"     [{idx+1}] {c['name']:<20} (Path: {c.get('cam_path')})")
+    print(f" * Mode Stream          : {args.stream_mode.upper()} via {args.pinggy_stream_base}")
     print(f" * Channel Stream       : Channel {args.channel} ({'Mainstream Cam HD' if args.channel == '101' else 'Substream'})")
-    print(f" * Verifikasi Rokok     : Terdeteksi minimal {args.smoke_sec} detik kontinu")
+    print(f" * Aturan Human Gate    : AI Rokok & Wajah HANYA jalan jika manusia terdeteksi")
+    print(f" * Aturan Auto-Sleep    : Jika nihil manusia {args.idle_sleep_sec:.0f}s -> AI Rokok/Wajah tidur {args.sleep_duration_sec:.0f}s (1 menit)")
+    print(f" * Verifikasi Merokok   : Kontinu minimal {args.smoke_sec:.1f} detik")
     print(f" * Model Manusia        : {os.path.basename(person_model_path)} (Conf >= {args.conf_person:.2f})")
     print(f" * Model Rokok          : {os.path.basename(cigar_model_path)} (Conf >= {args.conf_smoke:.2f})")
     print(f" * Model Wajah          : YuNet + FaceNet ONNX (Basis Data 38 Mahasiswa)")
-    print(f" * Mode Eksekusi        : {'Terminal Headless (Cloud GPU Mode)' if is_headless else 'Display Window GUI'}")
+    print(f" * Mode Eksekusi        : {'Terminal Headless (RunPod Mode)' if is_headless else 'Display Window GUI'}")
     print(f" * Web Telemetri API    : {args.web_telemetry}")
-    print("=" * 80)
+    print("=" * 82)
 
-    # Inisialisasi Model Pipeline
-    print(f"\n[1/3] Menginisialisasi Detektor Manusia ({os.path.basename(person_model_path)})...")
+    # Inisialisasi Model AI (Shared instance untuk ke-4 kamera)
+    print(f"\n[1/4] Menginisialisasi Detektor Manusia ({os.path.basename(person_model_path)})...")
     person_detector = PersonDetector(person_model_path, conf_threshold=args.conf_person, max_lost=25)
 
-    print(f"[2/3] Menginisialisasi Detektor Merokok ({os.path.basename(cigar_model_path)})...")
+    print(f"[2/4] Menginisialisasi Detektor Merokok ({os.path.basename(cigar_model_path)})...")
     smoking_detector = SmokingDetector(cigar_model_path, conf_threshold=args.conf_smoke, min_size=8)
 
-    print("[3/3] Menginisialisasi Pipeline Wajah (YuNet + FaceNet ONNX)...")
+    print("[3/4] Menginisialisasi Pipeline Wajah (YuNet + FaceNet ONNX)...")
     face_pipeline = FaceRecognitionPipeline(PATH_YUNET_ONNX, PATH_FACENET_ONNX, PATH_DATABASE_NPZ, threshold=0.85)
 
-    # Inisialisasi Stream Worker
-    print(f"\n[4/4] Memulai pengambilan video stream {cam['name']} (Mainstream Cam)...")
-    stream_worker = StreamWorker(
-        labs_list,
+    # Inisialisasi State AI untuk ke-4 Kamera
+    camera_states = [CameraAIState(c) for c in labs_list]
+    SHARED_RUNPOD_STATE["camera_states"] = camera_states
+
+    # Inisialisasi MultiCameraStreamWorker
+    print(f"\n[4/4] Memulai pengambilan video stream serentak untuk {len(labs_list)} kamera...")
+    stream_worker = MultiCameraStreamWorker(
+        labs=labs_list,
         channel=args.channel,
         mock=args.mock,
         stream_mode=args.stream_mode,
         pinggy_base=args.pinggy_stream_base,
-        custom_stream_url=args.stream_url
+        custom_stream_url=args.stream_url if args.stream_url else None
     )
     SHARED_RUNPOD_STATE["stream_worker"] = stream_worker
-    SHARED_RUNPOD_STATE["current_lab"] = cam["name"]
 
-    # Inisialisasi API Server Latar Belakang (Port 8001)
+    # Inisialisasi HTTP Server Latar Belakang (Port 8001)
     httpd = None
     try:
         httpd = ThreadingHTTPServer(("0.0.0.0", args.api_port), RunPodHTTPHandler)
         server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         server_thread.start()
         print(f" * API Server Lokal aktif di http://0.0.0.0:{args.api_port}/")
-        print(f" * Stream MJPEG Monitor : http://localhost:{args.api_port}/stream")
+        print(f" * Monitor Grid 2x2 MJPEG : http://localhost:{args.api_port}/stream")
     except Exception as e:
         print(f" [PERINGATAN] Gagal bind HTTP server di port {args.api_port}: {e}")
 
-    # Inisialisasi Pinggy Tunnel untuk API Server jika diaktifkan
+    # Inisialisasi Pinggy Tunnel
     pinggy_tunnel = None
     use_pinggy_api = args.pinggy and not args.no_pinggy
     if use_pinggy_api:
@@ -1117,51 +1280,33 @@ def main():
         if p_url:
             SHARED_RUNPOD_STATE["public_url"] = p_url
             print(f" >>> URL Publik API Server : {p_url}")
-            print(f" >>> Stream MJPEG Publik   : {p_url}/stream")
+            print(f" >>> Stream MJPEG 2x2      : {p_url}/stream")
 
     # Jalankan background telemetry worker
     if args.web_telemetry:
         start_telemetry_worker(args.web_telemetry)
-
-    # State loop pemantauan
-    smoking_start_time: Optional[float] = None
-    last_smoking_seen_time: Optional[float] = None
-    last_known_smoke_event = None
-    pending_face_ident_start: Optional[float] = None
-    SMOKING_GRACE_PERIOD = 1.8
-    SMOKING_COOLDOWN_SEC = 30.0  # Cooldown 30s per insiden agar tidak spamming
-    last_incident_capture_time = 0.0
 
     fps_counter = 0
     fps_start_time = time.time()
     current_fps = 0.0
     last_print_time = 0.0
     last_telemetry_send_time = 0.0
-    sim_triggered = False
 
-    window_name = "E.S.I.S Plan A - RunPod Cloud Terminal Monitor"
+    SMOKING_GRACE_PERIOD = 1.8
+    SMOKING_COOLDOWN_SEC = 30.0
+
+    window_name = "E.S.I.S Plan A - 4 Cameras Monitor (RunPod Cloud GPU)"
     if not is_headless:
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(window_name, 1280, 720)
 
-    print("\n" + "=" * 80)
-    print(f"   PATROLI AKTIF: {cam['name']} (Menunggu video feed...)")
+    print("\n" + "=" * 82)
+    print("   PATROLI 4 KAMERA RUNPOD (PLAN A) BERJALAN AKTIF!")
     print("   Tekan Ctrl+C di terminal untuk menghentikan patroli.")
-    print("=" * 80 + "\n")
+    print("=" * 82 + "\n")
 
     try:
         while True:
-            # 1. PENGAMBILAN FRAME
-            is_conn, frame, _ = stream_worker.get_frame()
-            if not is_conn or frame is None:
-                curr_t = time.time()
-                if is_headless and (curr_t - last_print_time >= 3.0):
-                    last_print_time = curr_t
-                    now_hms = datetime.datetime.now().strftime("%H:%M:%S")
-                    print(f"[{now_hms}] [{cam['name']}] Menghubungkan ke stream Pinggy Cam... (Sedang mencoba URL stream)", flush=True)
-                time.sleep(0.08)
-                continue
-
             curr_t = time.time()
             fps_counter += 1
             if curr_t - fps_start_time >= 1.0:
@@ -1170,269 +1315,338 @@ def main():
                 fps_start_time = curr_t
                 SHARED_RUNPOD_STATE["fps"] = round(current_fps, 1)
 
-            # Simulasi otomatis via argumen jika diuji
-            if args.test_sim_sec > 0 and not sim_triggered:
-                if (curr_t - stream_worker.thread.ident) >= args.test_sim_sec:
-                    sim_triggered = True
-                    now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                    sim_fn = f"simulasi_terminal_{now_str}.jpg"
-                    sim_path = os.path.join(CAPTURES_DIR, sim_fn)
-                    cv2.imwrite(sim_path, frame)
-                    print(f"\n [SIMULASI] Memicu simulasi pelanggaran otomatis (--test-sim-sec {args.test_sim_sec})...")
-                    threading.Thread(
-                        target=capture_and_report_incident,
-                        kwargs={
-                            "frame_or_path": sim_path,
-                            "location": cam["name"],
-                            "location_group": "Lantai 5 Gedung PLT",
-                            "student_name": "Agung Susilo Adi Pratama",
-                            "student_id": "11230910000004",
-                            "confidence_smoking": 0.95,
-                            "face_similarity": 0.955,
-                            "notes": f"Simulasi otomatis Plan A Terminal (--test-sim-sec {args.test_sim_sec}).",
-                            "filename": sim_fn,
-                        },
-                        daemon=True
-                    ).start()
+            # Proses inferensi ke-4 kamera secara berurutan dalam loop cepat
+            for cam_idx, cam_state in enumerate(camera_states):
+                cam_info = labs_list[cam_idx]
+                is_conn, frame, _ = stream_worker.get_frame(cam_idx)
 
-            # 2. INFERENSI HUMAN DETECTION & TRACKING
-            has_person, person_boxes = person_detector.detect(frame)
-            SHARED_RUNPOD_STATE["has_person"] = bool(has_person)
-            SHARED_RUNPOD_STATE["latest_frame"] = frame
+                cam_state.is_connected = is_conn
+                cam_state.latest_frame = frame
 
-            # 3. IDENTIFIKASI WAJAH & DETEKSI ROKOK
-            smoking_events = []
-            faces_identified = []
+                if not is_conn or frame is None:
+                    cam_state.status_badge = "OFFLINE"
+                    cam_state.status_desc = "Menghubungkan stream..."
+                    cam_state.annotated_frame = None
+                    continue
 
-            if has_person:
-                faces_identified = face_pipeline.detect_faces(frame, person_boxes)
-                smoking_detections = smoking_detector.detect(frame, person_boxes)
-                smoking_events = [d for d in smoking_detections if d["is_smoking"]]
-            elif smoking_start_time is not None and (curr_t - (last_smoking_seen_time or curr_t)) < SMOKING_GRACE_PERIOD:
-                smoking_detections = smoking_detector.detect(frame, person_boxes)
-                smoking_events = [d for d in smoking_detections if d["is_smoking"]]
+                # -------------------------------------------------------------
+                # ATURAN GATED INFERENCE:
+                # 1. Cek apakah kamera sedang dalam masa tidur (1 menit)
+                # -------------------------------------------------------------
+                in_sleep_mode = (curr_t < cam_state.sleep_until)
 
-            # 4. ATURAN 3 DETIK MEROKOK KONTINU
-            if smoking_events:
-                last_smoking_seen_time = curr_t
-                last_known_smoke_event = smoking_events[0]
-                if smoking_start_time is None:
-                    smoking_start_time = curr_t
-                smoking_duration = curr_t - smoking_start_time
-            else:
-                if last_smoking_seen_time is not None and (curr_t - last_smoking_seen_time) < SMOKING_GRACE_PERIOD:
-                    if smoking_start_time is not None:
-                        smoking_duration = curr_t - smoking_start_time
-                else:
-                    smoking_start_time = None
-                    last_smoking_seen_time = None
-                    last_known_smoke_event = None
-                    pending_face_ident_start = None
-                    smoking_duration = 0.0
+                if in_sleep_mode:
+                    remaining_sleep = int(cam_state.sleep_until - curr_t)
+                    cam_state.has_person = False
+                    cam_state.person_boxes = []
+                    cam_state.is_smoking = False
+                    cam_state.smoking_duration = 0.0
+                    cam_state.smoking_start_time = None
+                    cam_state.last_smoking_seen_time = None
+                    cam_state.pending_face_ident_start = None
+                    cam_state.status_badge = f"SLEEP ({remaining_sleep}s)"
+                    cam_state.status_desc = f"Model Rokok & Wajah DIMATIKAN ({remaining_sleep}s tersisa)"
 
-            SHARED_RUNPOD_STATE["is_smoking"] = bool(len(smoking_events) > 0)
-            SHARED_RUNPOD_STATE["smoking_duration"] = round(float(smoking_duration), 1)
+                    # Model Rokok dan Wajah TIDAK dijalankan sama sekali!
+                    # Tampilkan banner status tidur pada frame visual
+                    disp_frame = frame.copy()
+                    (fh, fw) = disp_frame.shape[:2]
+                    cv2.rectangle(disp_frame, (20, 20), (min(fw - 20, 480), 80), (15, 20, 30), -1)
+                    cv2.putText(disp_frame, "MODE HEMAT DAYA (1 MENIT)", (35, 50),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 220, 255), 2)
+                    cv2.putText(disp_frame, f"AI Rokok & Wajah dimatikan: {remaining_sleep}s tersisa", (35, 72),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+                    cam_state.annotated_frame = disp_frame
+                    continue
 
-            # Anotasi frame untuk monitor stream MJPEG web
-            stream_frame = frame.copy()
-            if smoking_events:
-                for d in smoking_events:
-                    (sx, sy, sw, sh) = d["box"]
-                    conf = d["conf"]
-                    b_color = (0, 0, 255) if smoking_duration >= args.smoke_sec else (0, 140, 255)
-                    cv2.rectangle(stream_frame, (sx, sy), (sx + sw, sy + sh), b_color, 3)
-                    lbl = f"ROKOK: {int(conf*100)}% ({smoking_duration:.1f}s)"
-                    (tw, th), _ = cv2.getTextSize(lbl, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
-                    cv2.rectangle(stream_frame, (sx, max(0, sy - th - 8)), (sx + tw + 8, max(th + 8, sy)), b_color, -1)
-                    cv2.putText(stream_frame, lbl, (sx + 4, max(th + 4, sy - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
-            SHARED_RUNPOD_STATE["annotated_frame"] = stream_frame
+                # -------------------------------------------------------------
+                # 2. Jika tidak dalam mode tidur -> Jalankan Detektor Manusia
+                # -------------------------------------------------------------
+                has_person, person_boxes = person_detector.detect(frame)
+                cam_state.has_person = has_person
+                cam_state.person_boxes = person_boxes
 
-            # 5. VERIFIKASI PELANGGARAN JIKA >= 3 DETIK KONTINU
-            if smoking_duration >= args.smoke_sec and (curr_t - last_incident_capture_time) >= SMOKING_COOLDOWN_SEC:
-                violator_name = "Mahasiswa Tidak Terdaftar"
-                violator_sim = 0.0
-                smoker_person = None
+                disp_frame = frame.copy()
+                (fh, fw) = disp_frame.shape[:2]
 
-                primary_smoke = smoking_events[0] if smoking_events else last_known_smoke_event
-                if primary_smoke is not None:
-                    sx, sy, sw, sh = primary_smoke["box"]
-                    c_rx = sx + sw / 2.0
-                    c_ry = sy + sh / 2.0
+                if has_person:
+                    # Manusia terdeteksi: Reset timer idle
+                    cam_state.no_person_since = None
+                    cam_state.status_badge = f"MANUSIA ({len(person_boxes)})"
+                    cam_state.status_desc = "AI Rokok & Wajah AKTIF"
 
-                    if primary_smoke.get("person_box") is not None:
-                        smoker_person = primary_smoke["person_box"]
-                    elif person_boxes:
-                        best_p_dist = float('inf')
-                        for p in person_boxes:
-                            px, py, pw, ph, *pconf = p
-                            if (px - pw*0.15 <= c_rx <= px + pw*1.15) and (py - ph*0.15 <= c_ry <= py + ph*1.15):
-                                d = ((px + pw/2.0 - c_rx)**2 + (py + ph/2.0 - c_ry)**2)**0.5
-                                if d < best_p_dist:
-                                    best_p_dist = d
-                                    smoker_person = p
-                else:
-                    if person_boxes:
-                        smoker_person = person_boxes[0]
+                    # Gambar bounding box manusia (hijau tipis)
+                    for p in person_boxes:
+                        px, py, pw, ph, *pconf = p
+                        cv2.rectangle(disp_frame, (px, py), (px + pw, py + ph), (0, 220, 0), 2)
 
-                # Pencocokan Wajah Spasial
-                if smoker_person is not None and faces_identified:
-                    spx, spy, spw, sph, *spconf = smoker_person
-                    candidate_faces = []
-                    for face_item in faces_identified:
-                        fbox, fname, fsim, fdist, f_src_p = face_item
-                        fx, fy, fw, fh = fbox
-                        fc_x = fx + fw / 2.0
-                        fc_y = fy + fh / 2.0
+                    # ---------------------------------------------------------
+                    # 3. LANJUT KE MODEL AI ROKOK & WAJAH (KARENA ADA MANUSIA)
+                    # ---------------------------------------------------------
+                    faces_identified = face_pipeline.detect_faces(frame, person_boxes)
+                    smoking_detections = smoking_detector.detect(frame, person_boxes)
+                    smoking_events = [d for d in smoking_detections if d["is_smoking"]]
 
-                        is_match = (f_src_p is not None and f_src_p == smoker_person) or \
-                                   ((spx - spw*0.12 <= fc_x <= spx + spw*1.12) and (spy - 30 <= fc_y <= spy + int(sph*0.85)))
-                        if is_match:
-                            d_cigar = ((fc_x - (c_rx if primary_smoke else fc_x))**2 + (fc_y - (c_ry if primary_smoke else fc_y))**2)**0.5
-                            candidate_faces.append((fbox, fname, fsim, d_cigar))
-
-                    if candidate_faces:
-                        candidate_faces.sort(key=lambda x: x[3])
-                        best_face = candidate_faces[0]
-                        if best_face[1] != "Tidak Dikenal":
-                            violator_name = best_face[1]
-                            violator_sim = best_face[2]
-
-                is_known_student = (violator_name not in ["Mahasiswa Tidak Terdaftar", "Tidak Dikenal"])
-
-                if pending_face_ident_start is None:
-                    pending_face_ident_start = curr_t
-                    if not is_known_student:
-                        print(f"\n [BUFFER IDENTIFIKASI WAJAH] Merokok >= {args.smoke_sec:.0f}s di {cam['name']}. Menunggu pengenalan wajah (buffer 3 detik)...", flush=True)
-
-                conf_smoke = float(primary_smoke.get("conf", 0.94)) if primary_smoke else 0.94
-                sim_face = float(violator_sim / 100.0) if violator_sim > 1.0 else float(violator_sim)
-
-                should_report = False
-                status_desc = ""
-
-                # ATURAN PLAN B:
-                # KONDISI A: Wajah Terdaftar Teridentifikasi -> Cek Cooldown 1 Jam!
-                if is_known_student:
-                    last_viol_t = STUDENT_COOLDOWNS.get(violator_name, 0.0)
-                    elapsed = curr_t - last_viol_t
-                    if elapsed < 3600.0:
-                        sisa_menit = int((3600.0 - elapsed) // 60)
-                        sisa_detik = int((3600.0 - elapsed) % 60)
-                        print(f"\n [COOLDOWN 1 JAM AKTIF] Mahasiswa '{violator_name}' sudah tercatat melanggar ({int(elapsed//60)}m lalu).", flush=True)
-                        print(f"   -> Sisa waktu jeda cooldown: {sisa_menit} menit {sisa_detik} detik. Laporan baru tidak dikirim.\n", flush=True)
-                        pending_face_ident_start = None
-                        last_incident_capture_time = curr_t + 10.0
-                        should_report = False
+                    # Logika Verifikasi Merokok Kontinu 3 Detik
+                    if smoking_events:
+                        cam_state.last_smoking_seen_time = curr_t
+                        cam_state.last_known_smoke_event = smoking_events[0]
+                        if cam_state.smoking_start_time is None:
+                            cam_state.smoking_start_time = curr_t
+                        cam_state.smoking_duration = curr_t - cam_state.smoking_start_time
+                        cam_state.is_smoking = True
+                        cam_state.status_badge = f"ROKOK ({cam_state.smoking_duration:.1f}s)"
                     else:
-                        should_report = True
-                        status_desc = f"TERVERIFIKASI ({violator_name})"
-                # KONDISI B: Wajah Belum Dikenal dan Batas Waktu 3.0s Telah Habis -> BATALKAN! (Aturan Plan B)
-                elif (curr_t - pending_face_ident_start) >= 3.0:
-                    print(f"\n [DIABAIKAN] Pelanggaran rokok terdeteksi di {cam['name']}, tetapi wajah pelaku")
-                    print("   tidak dikenal / tidak terdaftar sebagai mahasiswa setelah buffer 3 detik.")
-                    print("   -> Laporan dibatalkan sesuai aturan PLAN B (hanya mahasiswa terdaftar yang dilaporkan).\n", flush=True)
-                    pending_face_ident_start = None
-                    last_incident_capture_time = curr_t + 6.0
-                    should_report = False
+                        if cam_state.last_smoking_seen_time is not None and (curr_t - cam_state.last_smoking_seen_time) < SMOKING_GRACE_PERIOD:
+                            if cam_state.smoking_start_time is not None:
+                                cam_state.smoking_duration = curr_t - cam_state.smoking_start_time
+                            cam_state.is_smoking = True
+                        else:
+                            cam_state.smoking_start_time = None
+                            cam_state.last_smoking_seen_time = None
+                            cam_state.last_known_smoke_event = None
+                            cam_state.pending_face_ident_start = None
+                            cam_state.smoking_duration = 0.0
+                            cam_state.is_smoking = False
 
-                if should_report:
-                    pending_face_ident_start = None
-                    last_incident_capture_time = curr_t
-                    # Catat Cooldown 1 Jam
-                    STUDENT_COOLDOWNS[violator_name] = curr_t
+                    # Anotasi visual rokok jika terdeteksi
+                    if smoking_events:
+                        for d in smoking_events:
+                            (sx, sy, sw, sh) = d["box"]
+                            conf = d["conf"]
+                            b_color = (0, 0, 255) if cam_state.smoking_duration >= args.smoke_sec else (0, 140, 255)
+                            cv2.rectangle(disp_frame, (sx, sy), (sx + sw, sy + sh), b_color, 3)
+                            lbl = f"ROKOK: {int(conf*100)}% ({cam_state.smoking_duration:.1f}s)"
+                            (tw, th), _ = cv2.getTextSize(lbl, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+                            cv2.rectangle(disp_frame, (sx, max(0, sy - th - 8)), (sx + tw + 8, max(th + 8, sy)), b_color, -1)
+                            cv2.putText(disp_frame, lbl, (sx + 4, max(th + 4, sy - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
 
-                    # Resolusi NIM & Data Mahasiswa dari Cache
-                    st_info = STUDENT_CACHE.get(violator_name.lower(), {})
-                    resolved_student_id = st_info.get("nim")
-                    resolved_dept = st_info.get("jurusan")
-                    resolved_email = st_info.get("email")
+                    # Anotasi visual wajah
+                    for fbox, fname, fsim, fdist, fparent in faces_identified:
+                        fx, fy, fw, fh = fbox
+                        f_color = (0, 255, 0) if fname != "Tidak Dikenal" else (180, 180, 180)
+                        cv2.rectangle(disp_frame, (fx, fy), (fx + fw, fy + fh), f_color, 2)
+                        flbl = f"{fname} ({fsim:.0f}%)" if fname != "Tidak Dikenal" else "Wajah Belum Terdaftar"
+                        cv2.putText(disp_frame, flbl, (fx, max(15, fy - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, f_color, 1)
 
-                    now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                    capture_filename = f"pelanggaran_{cam['key']}_{now_str}.jpg"
-                    capture_path = os.path.join(CAPTURES_DIR, capture_filename)
+                    cam_state.annotated_frame = disp_frame
 
-                    # Anotasi Bounding Box Bukti CCTV
-                    evidence_frame = frame.copy()
-                    eh, ew = evidence_frame.shape[:2]
+                    # ---------------------------------------------------------
+                    # 4. EVALUASI VERIFIKASI PELANGGARAN JIKA >= 3 DETIK
+                    # ---------------------------------------------------------
+                    if cam_state.smoking_duration >= args.smoke_sec and (curr_t - cam_state.last_incident_capture_time) >= SMOKING_COOLDOWN_SEC:
+                        violator_name = "Mahasiswa Tidak Terdaftar"
+                        violator_sim = 0.0
+                        smoker_person = None
 
-                    # 1. Bounding box rokok tebal warna merah
-                    if primary_smoke is not None:
-                        sx, sy, sw, sh = primary_smoke["box"]
-                        c_lbl = f"ROKOK: {int(conf_smoke * 100)}%"
-                        cv2.rectangle(evidence_frame, (sx, sy), (sx + sw, sy + sh), (0, 0, 255), 3)
-                        (tw, th), _ = cv2.getTextSize(c_lbl, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-                        cv2.rectangle(evidence_frame, (sx, max(0, sy - th - 10)), (sx + tw + 10, max(th + 10, sy)), (0, 0, 255), -1)
-                        cv2.putText(evidence_frame, c_lbl, (sx + 5, max(th + 5, sy - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                        primary_smoke = smoking_events[0] if smoking_events else cam_state.last_known_smoke_event
+                        if primary_smoke is not None:
+                            sx, sy, sw, sh = primary_smoke["box"]
+                            c_rx = sx + sw / 2.0
+                            c_ry = sy + sh / 2.0
 
-                    # 2. Bounding box perokok warna hijau
-                    if smoker_person is not None:
-                        spx, spy, spw, sph, *spconf = smoker_person
-                        nim_label = f" [{resolved_student_id}]" if resolved_student_id else ""
-                        p_lbl = f"[PEROKOK] {violator_name}{nim_label} ({violator_sim:.1f}%)"
-                        cv2.rectangle(evidence_frame, (spx, spy), (spx + spw, spy + sph), (0, 255, 0), 2)
-                        (ptw, pth), _ = cv2.getTextSize(p_lbl, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-                        cv2.rectangle(evidence_frame, (spx, max(0, spy - pth - 10)), (spx + ptw + 10, max(pth + 10, spy)), (0, 180, 0), -1)
-                        cv2.putText(evidence_frame, p_lbl, (spx + 5, max(pth + 5, spy - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+                            if primary_smoke.get("person_box") is not None:
+                                smoker_person = primary_smoke["person_box"]
+                            elif person_boxes:
+                                best_p_dist = float('inf')
+                                for p in person_boxes:
+                                    px, py, pw, ph, *pconf = p
+                                    if (px - pw*0.15 <= c_rx <= px + pw*1.15) and (py - ph*0.15 <= c_ry <= py + ph*1.15):
+                                        d = ((px + pw/2.0 - c_rx)**2 + (py + ph/2.0 - c_ry)**2)**0.5
+                                        if d < best_p_dist:
+                                            best_p_dist = d
+                                            smoker_person = p
+                        else:
+                            if person_boxes:
+                                smoker_person = person_boxes[0]
 
-                    # 3. Header OSD Bukti CCTV
-                    cv2.rectangle(evidence_frame, (0, 0), (ew, 50), (15, 20, 28), -1)
-                    cv2.putText(evidence_frame, f"E.S.I.S BUKTI PELANGGARAN | {cam['name']}", (15, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2)
-                    cv2.putText(evidence_frame, f"WAKTU: {now_str} WIB | {status_desc} (>3s)", (15, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1)
+                        # Pencocokan Wajah Spasial
+                        if smoker_person is not None and faces_identified:
+                            spx, spy, spw, sph, *spconf = smoker_person
+                            candidate_faces = []
+                            for face_item in faces_identified:
+                                fbox, fname, fsim, fdist, f_src_p = face_item
+                                fx, fy, fw, fh = fbox
+                                fc_x = fx + fw / 2.0
+                                fc_y = fy + fh / 2.0
 
-                    cv2.imwrite(capture_path, evidence_frame)
+                                is_match = (f_src_p is not None and f_src_p == smoker_person) or \
+                                           ((spx - spw*0.12 <= fc_x <= spx + spw*1.12) and (spy - 30 <= fc_y <= spy + int(sph*0.85)))
+                                if is_match:
+                                    d_cigar = ((fc_x - (c_rx if primary_smoke else fc_x))**2 + (fc_y - (c_ry if primary_smoke else fc_y))**2)**0.5
+                                    candidate_faces.append((fbox, fname, fsim, d_cigar))
 
-                    print("\n" + "=" * 80)
-                    print(f" 🚨 [PELANGGARAN TERKONFIRMASI] {cam['name']}")
-                    print(f"    Pelaku    : {violator_name} (NIM: {resolved_student_id or '-'})")
-                    print(f"    Kemiripan : {violator_sim:.1f}%")
-                    print(f"    Durasi    : {smoking_duration:.1f} detik kontinu")
-                    print(f"    Snapshot  : {capture_path}")
-                    print("    Mengunggah bukti ke Cloudflare R2 & Mengirim Laporan ke Website API...")
-                    print("=" * 80 + "\n", flush=True)
+                            if candidate_faces:
+                                candidate_faces.sort(key=lambda x: x[3])
+                                best_face = candidate_faces[0]
+                                if best_face[1] != "Tidak Dikenal":
+                                    violator_name = best_face[1]
+                                    violator_sim = best_face[2]
 
-                    threading.Thread(
-                        target=capture_and_report_incident,
-                        kwargs={
-                            "frame_or_path": capture_path,
-                            "location": cam["name"],
-                            "location_group": "Lantai 5 Gedung PLT",
-                            "student_name": violator_name,
-                            "student_id": resolved_student_id,
-                            "confidence_smoking": conf_smoke,
-                            "face_similarity": sim_face,
-                            "notes": f"Terdeteksi otomatis merokok selama {smoking_duration:.1f} detik via Plan A di {cam['name']}.",
-                            "filename": capture_filename,
-                        },
-                        daemon=True
-                    ).start()
+                        is_known_student = (violator_name not in ["Mahasiswa Tidak Terdaftar", "Tidak Dikenal"])
 
+                        if cam_state.pending_face_ident_start is None:
+                            cam_state.pending_face_ident_start = curr_t
+                            if not is_known_student:
+                                print(f"\n [BUFFER IDENTIFIKASI WAJAH] Merokok >= {args.smoke_sec:.0f}s di {cam_info['name']}. Menunggu pengenalan wajah (buffer 3 detik)...", flush=True)
+
+                        conf_smoke = float(primary_smoke.get("conf", 0.94)) if primary_smoke else 0.94
+                        sim_face = float(violator_sim / 100.0) if violator_sim > 1.0 else float(violator_sim)
+
+                        should_report = False
+                        status_desc = ""
+
+                        # KONDISI A: Wajah Terdaftar Teridentifikasi -> Cek Cooldown 1 Jam!
+                        if is_known_student:
+                            last_viol_t = STUDENT_COOLDOWNS.get(violator_name, 0.0)
+                            elapsed = curr_t - last_viol_t
+                            if elapsed < 3600.0:
+                                sisa_menit = int((3600.0 - elapsed) // 60)
+                                sisa_detik = int((3600.0 - elapsed) % 60)
+                                print(f"\n [COOLDOWN 1 JAM AKTIF] Mahasiswa '{violator_name}' sudah tercatat melanggar ({int(elapsed//60)}m lalu).", flush=True)
+                                print(f"   -> Sisa waktu jeda cooldown: {sisa_menit} menit {sisa_detik} detik. Laporan baru tidak dikirim.\n", flush=True)
+                                cam_state.pending_face_ident_start = None
+                                cam_state.last_incident_capture_time = curr_t + 10.0
+                                should_report = False
+                            else:
+                                should_report = True
+                                status_desc = f"TERVERIFIKASI ({violator_name})"
+                        # KONDISI B: Wajah Belum Dikenal setelah 3.0s -> BATALKAN! (Aturan Plan B)
+                        elif (curr_t - cam_state.pending_face_ident_start) >= 3.0:
+                            print(f"\n [DIABAIKAN] Pelanggaran rokok terdeteksi di {cam_info['name']}, tetapi wajah pelaku")
+                            print("   tidak dikenal / tidak terdaftar sebagai mahasiswa setelah buffer 3 detik.")
+                            print("   -> Laporan dibatalkan sesuai aturan PLAN B (hanya mahasiswa terdaftar yang dilaporkan).\n", flush=True)
+                            cam_state.pending_face_ident_start = None
+                            cam_state.last_incident_capture_time = curr_t + 6.0
+                            should_report = False
+
+                        if should_report:
+                            cam_state.pending_face_ident_start = None
+                            cam_state.last_incident_capture_time = curr_t
+                            STUDENT_COOLDOWNS[violator_name] = curr_t
+
+                            # Resolusi NIM & Data Mahasiswa dari Cache
+                            st_info = STUDENT_CACHE.get(violator_name.lower(), {})
+                            resolved_student_id = st_info.get("nim")
+
+                            now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                            capture_filename = f"pelanggaran_{cam_info['key']}_{now_str}.jpg"
+                            capture_path = os.path.join(CAPTURES_DIR, capture_filename)
+
+                            evidence_frame = frame.copy()
+                            eh, ew = evidence_frame.shape[:2]
+
+                            # 1. Bounding box rokok tebal warna merah
+                            if primary_smoke is not None:
+                                sx, sy, sw, sh = primary_smoke["box"]
+                                c_lbl = f"ROKOK: {int(conf_smoke * 100)}%"
+                                cv2.rectangle(evidence_frame, (sx, sy), (sx + sw, sy + sh), (0, 0, 255), 3)
+                                (tw, th), _ = cv2.getTextSize(c_lbl, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+                                cv2.rectangle(evidence_frame, (sx, max(0, sy - th - 10)), (sx + tw + 10, max(th + 10, sy)), (0, 0, 255), -1)
+                                cv2.putText(evidence_frame, c_lbl, (sx + 5, max(th + 5, sy - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+                            # 2. Bounding box perokok warna hijau
+                            if smoker_person is not None:
+                                spx, spy, spw, sph, *spconf = smoker_person
+                                nim_label = f" [{resolved_student_id}]" if resolved_student_id else ""
+                                p_lbl = f"[PEROKOK] {violator_name}{nim_label} ({violator_sim:.1f}%)"
+                                cv2.rectangle(evidence_frame, (spx, spy), (spx + spw, spy + sph), (0, 255, 0), 2)
+                                (ptw, pth), _ = cv2.getTextSize(p_lbl, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+                                cv2.rectangle(evidence_frame, (spx, max(0, spy - pth - 10)), (spx + ptw + 10, max(pth + 10, spy)), (0, 180, 0), -1)
+                                cv2.putText(evidence_frame, p_lbl, (spx + 5, max(pth + 5, spy - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+
+                            # 3. Header OSD Bukti CCTV
+                            cv2.rectangle(evidence_frame, (0, 0), (ew, 50), (15, 20, 28), -1)
+                            cv2.putText(evidence_frame, f"E.S.I.S BUKTI PELANGGARAN | {cam_info['name']}", (15, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2)
+                            cv2.putText(evidence_frame, f"WAKTU: {now_str} WIB | {status_desc} (>3s)", (15, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1)
+
+                            cv2.imwrite(capture_path, evidence_frame)
+
+                            print("\n" + "=" * 82)
+                            print(f" 🚨 [PELANGGARAN TERKONFIRMASI] {cam_info['name']}")
+                            print(f"    Pelaku    : {violator_name} (NIM: {resolved_student_id or '-'})")
+                            print(f"    Kemiripan : {violator_sim:.1f}%")
+                            print(f"    Durasi    : {cam_state.smoking_duration:.1f} detik kontinu")
+                            print(f"    Snapshot  : {capture_path}")
+                            print("    Mengunggah bukti ke Cloudflare R2 & Mengirim Laporan ke Website API...")
+                            print("=" * 82 + "\n", flush=True)
+
+                            threading.Thread(
+                                target=capture_and_report_incident,
+                                kwargs={
+                                    "frame_or_path": capture_path,
+                                    "location": cam_info["name"],
+                                    "location_group": cam_info.get("location_group", "Lantai 5 Gedung PLT"),
+                                    "student_name": violator_name,
+                                    "student_id": resolved_student_id,
+                                    "confidence_smoking": conf_smoke,
+                                    "face_similarity": sim_face,
+                                    "notes": f"Terdeteksi otomatis merokok selama {cam_state.smoking_duration:.1f} detik via Plan A di {cam_info['name']}.",
+                                    "filename": capture_filename,
+                                },
+                                daemon=True
+                            ).start()
+
+                else:
+                    # ---------------------------------------------------------
+                    # TIDAK ADA MANUSIA
+                    # ---------------------------------------------------------
+                    cam_state.is_smoking = False
+                    cam_state.smoking_duration = 0.0
+                    cam_state.smoking_start_time = None
+                    cam_state.last_smoking_seen_time = None
+                    cam_state.pending_face_ident_start = None
+
+                    if cam_state.no_person_since is None:
+                        cam_state.no_person_since = curr_t
+
+                    idle_duration = curr_t - cam_state.no_person_since
+                    if idle_duration < args.idle_sleep_sec:
+                        sisa_ke_tidur = args.idle_sleep_sec - idle_duration
+                        cam_state.status_badge = f"NIHIL ({sisa_ke_tidur:.1f}s)"
+                        cam_state.status_desc = f"Tidak ada manusia ({idle_duration:.1f}s / {args.idle_sleep_sec:.0f}s)"
+                    else:
+                        # SUDAH 10 DETIK TANPA MANUSIA -> AKTIFKAN TIDUR 1 MENIT!
+                        cam_state.sleep_until = curr_t + args.sleep_duration_sec
+                        cam_state.no_person_since = None
+                        cam_state.status_badge = f"SLEEP ({int(args.sleep_duration_sec)}s)"
+                        cam_state.status_desc = f"Tidak ada manusia >{args.idle_sleep_sec:.0f}s -> AI Rokok/Wajah dimatikan {int(args.sleep_duration_sec)}s"
+                        wake_hms = datetime.datetime.fromtimestamp(cam_state.sleep_until).strftime("%H:%M:%S")
+                        print(f"\n [HEMAT ENERGI] [{cam_info['name']}] Tidak ada manusia selama {args.idle_sleep_sec:.0f} detik.")
+                        print(f"   -> Model Rokok & Wajah DIMATIKAN selama {int(args.sleep_duration_sec)} detik (hingga {wake_hms} WIB).\n", flush=True)
+
+                    cam_state.annotated_frame = disp_frame
+
+            # -----------------------------------------------------------------
+            # 5. BUAT MOSAIC GRID 2x2 UNTUK MONITORING STREAM MJPEG & DISPLAY
+            # -----------------------------------------------------------------
+            mosaic_frame = build_2x2_mosaic(camera_states)
+            SHARED_RUNPOD_STATE["annotated_frame"] = mosaic_frame
+            SHARED_RUNPOD_STATE["latest_frame"] = mosaic_frame
+
+            # -----------------------------------------------------------------
             # 6. PENGIRIMAN TELEMETRI REAL-TIME
-            curr_now = time.time()
-            if curr_now - last_telemetry_send_time >= 0.25:
-                last_telemetry_send_time = curr_now
-                norm_boxes = []
-                h, w = frame.shape[:2]
-                if smoking_events:
-                    for d in smoking_events:
-                        (sx, sy, sw, sh) = d["box"]
-                        norm_boxes.append({
-                            "x": round(float(sx) / max(1, w), 4),
-                            "y": round(float(sy) / max(1, h), 4),
-                            "w": round(float(sw) / max(1, w), 4),
-                            "h": round(float(sh) / max(1, h), 4),
-                            "conf": round(float(d["conf"]), 2),
-                        })
+            # -----------------------------------------------------------------
+            if curr_t - last_telemetry_send_time >= 0.3:
+                last_telemetry_send_time = curr_t
+                cams_telemetry = []
+                for cs in camera_states:
+                    cams_telemetry.append({
+                        "name": cs.name,
+                        "key": cs.key,
+                        "ecam_path": cs.cam.get("cam_path", f"cam_{cs.key}"),
+                        "is_connected": cs.is_connected,
+                        "has_person": cs.has_person,
+                        "is_smoking": cs.is_smoking,
+                        "smoking_duration": round(float(cs.smoking_duration), 1),
+                        "status_badge": cs.status_badge,
+                        "sleep_until": cs.sleep_until
+                    })
 
                 tel_payload = {
-                    "current_lab": cam["name"],
-                    "cam_key": cam["key"],
-                    "ecam_path": cam.get("cam_path", "cam_lab_riset_lt_5"),
-                    "is_smoking": bool(len(smoking_events) > 0),
-                    "smoking_duration": round(float(smoking_duration), 1),
-                    "boxes": norm_boxes,
+                    "cameras": cams_telemetry,
                     "fps": round(float(current_fps), 1),
-                    "has_person": bool(has_person),
-                    "timestamp": curr_now
+                    "timestamp": curr_t
                 }
                 SHARED_RUNPOD_STATE["telemetry"] = tel_payload
                 try:
@@ -1440,27 +1654,23 @@ def main():
                 except queue.Full:
                     pass
 
-            # 7. LOGGING BERKALA TERMINAL HEADLESS
-            if is_headless and (curr_t - last_print_time >= 1.5):
+            # -----------------------------------------------------------------
+            # 7. LOGGING TERMINAL BERKALA (STATUS 4 KAMERA)
+            # -----------------------------------------------------------------
+            if is_headless and (curr_t - last_print_time >= 3.0):
                 last_print_time = curr_t
                 now_hms = datetime.datetime.now().strftime("%H:%M:%S")
-                if not has_person:
-                    print(f"[{now_hms}] [{cam['name']}] FPS: {current_fps:4.1f} | Manusia: 0 (Nihil) | Status: MONITORING STANDBY", flush=True)
-                else:
-                    smoke_str = f"AKTIF ({smoking_duration:.1f}s/{args.smoke_sec:.0f}s)" if smoking_duration > 0 else "Nihil"
-                    face_str = "Menunggu..."
-                    if faces_identified:
-                        top_face = faces_identified[0]
-                        face_str = f"{top_face[1]} ({top_face[2]:.1f}%)" if top_face[1] != "Tidak Dikenal" else "Wajah Belum Terdaftar"
-                    print(f"[{now_hms}] [{cam['name']}] FPS: {current_fps:4.1f} | Manusia: {len(person_boxes)} | Merokok: {smoke_str:18s} | Wajah: {face_str:25s} | Stream: ONLINE", flush=True)
+                print("=" * 82)
+                print(f" [PATROLI 4 KAMERA RUNPOD] Waktu: {now_hms} WIB | Total FPS: {current_fps:4.1f}")
+                print("-" * 82)
+                for c_idx, c_st in enumerate(camera_states):
+                    conn_str = "ONLINE " if c_st.is_connected else "OFFLINE"
+                    print(f" {c_idx+1}. {c_st.name:<20} | {conn_str} | Badge: {c_st.status_badge:<14} | Info: {c_st.status_desc}")
+                print("=" * 82, flush=True)
 
-            # Tampilan OpenCV jika diaktifkan dengan --gui
+            # Display GUI jika diaktifkan
             if not is_headless:
-                disp = stream_frame.copy()
-                dh, dw = disp.shape[:2]
-                cv2.rectangle(disp, (0, 0), (dw, 38), (15, 20, 28), -1)
-                cv2.putText(disp, f"PLAN A RUNPOD | {cam['name']} | FPS: {current_fps:.1f}", (15, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2)
-                cv2.imshow(window_name, disp)
+                cv2.imshow(window_name, mosaic_frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key in [ord('q'), ord('Q'), 27]:
                     print("\n[KELUAR] Tombol Q ditekan.")

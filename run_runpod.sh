@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ===============================================================================
 # E.S.I.S Plan A - RunPod Cloud GPU Launcher (Terminal Mode)
-# Menjalankan Patroli Headless Lab Riset Lt 5 (Mainstream Cam) + API Server + Pinggy
+# Menjalankan Patroli 4 Kamera Serentak + Gated Inference + API Server + Pinggy
 # ===============================================================================
 
 set -e
 
 echo "==============================================================================="
 echo "   E.S.I.S (Electronic Smoking Identification System)"
-echo "   PLAN A: RunPod Cloud GPU Terminal Runner (Lab Riset Lantai 5)"
+echo "   PLAN A: RunPod Cloud GPU Terminal Runner (4 Kamera Serentak)"
 echo "==============================================================================="
 
 # Pindah ke direktori skrip ini
@@ -40,12 +40,14 @@ else:
     print('      [INFO] CUDA GPU tidak terdeteksi, berjalan pada CPU mode.')
 "
 
-# 3. Jalankan Patroli Headless Plan A
+# 3. Jalankan Patroli Headless Plan A (4 Kamera Serentak)
 echo ""
 echo "[3/3] Memulai Patroli E.S.I.S Plan A..."
-echo "      * Target Kamera : Lab Riset Lantai 5"
-echo "      * Stream Source : https://fdxuqgcmfo.a.pinggy.link/cam_lab_riset_lt_5/index.m3u8"
-echo "      * Mode          : Terminal Headless"
+echo "      * Target Kamera : 4 Kamera (Lab Riset Lt 5, Lab OS, Lab Programming, Lobby Lt 5)"
+echo "      * Streaming     : Pinggy Pro Port 8888 (fdxuqgcmfo.a.pinggy.link)"
+echo "      * Gated AI      : Deteksi manusia aktif; AI rokok & wajah hanya jika ada orang"
+echo "      * Auto-Sleep    : Jika nihil manusia 10s -> AI rokok & wajah tidur 1 menit"
+echo "      * Grid Monitor  : http://localhost:8001/stream (Grid 2x2 MJPEG)"
 echo "      * API Port      : 8001"
 echo "      * Tekan Ctrl+C untuk keluar kapan saja."
 echo "==============================================================================="
