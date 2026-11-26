@@ -834,7 +834,7 @@ class SingleCameraCapture:
                                     self.latest_frame = f
                                     self.is_connected = True
                                 opened = True
-                                print(f" [TERHUBUNG] {self.name} via: {try_url}", flush=True)
+                                print(f"\n[STREAM] {self.name} -> TERHUBUNG\n         URL: {try_url}\n", flush=True)
                                 break
                             else:
                                 cap.release()
@@ -1214,7 +1214,7 @@ def main():
         if not os.path.exists(cigar_model_path):
             cigar_model_path = PATH_YOLO_ROKOK_ONNX
 
-    print("=" * 82)
+    print("\n" + "=" * 82)
     print("   E.S.I.S (Electronic Smoking Identification System) - PLAN A (RUNPOD CLOUD GPU)")
     print("   UPGRADE: DETEKSI 4 KAMERA SERENTAK + GATED INFERENCE (HEMAT SUMBER DAYA)")
     print("=" * 82)
@@ -1231,16 +1231,16 @@ def main():
     print(f" * Model Wajah          : YuNet + FaceNet ONNX (Basis Data 38 Mahasiswa)")
     print(f" * Mode Eksekusi        : {'Terminal Headless (RunPod Mode)' if is_headless else 'Display Window GUI'}")
     print(f" * Web Telemetri API    : {args.web_telemetry}")
-    print("=" * 82)
+    print("=" * 82 + "\n", flush=True)
 
     # Inisialisasi Model AI (Shared instance untuk ke-4 kamera)
-    print(f"\n[1/4] Menginisialisasi Detektor Manusia ({os.path.basename(person_model_path)})...")
+    print(f"[1/4] Menginisialisasi Detektor Manusia ({os.path.basename(person_model_path)})...", flush=True)
     person_detector = PersonDetector(person_model_path, conf_threshold=args.conf_person, max_lost=25)
 
-    print(f"[2/4] Menginisialisasi Detektor Merokok ({os.path.basename(cigar_model_path)})...")
+    print(f"[2/4] Menginisialisasi Detektor Merokok ({os.path.basename(cigar_model_path)})...", flush=True)
     smoking_detector = SmokingDetector(cigar_model_path, conf_threshold=args.conf_smoke, min_size=8)
 
-    print("[3/4] Menginisialisasi Pipeline Wajah (YuNet + FaceNet ONNX)...")
+    print("[3/4] Menginisialisasi Pipeline Wajah (YuNet + FaceNet ONNX)...", flush=True)
     face_pipeline = FaceRecognitionPipeline(PATH_YUNET_ONNX, PATH_FACENET_ONNX, PATH_DATABASE_NPZ, threshold=0.85)
 
     # Inisialisasi State AI untuk ke-4 Kamera
@@ -1248,7 +1248,7 @@ def main():
     SHARED_RUNPOD_STATE["camera_states"] = camera_states
 
     # Inisialisasi MultiCameraStreamWorker
-    print(f"\n[4/4] Memulai pengambilan video stream serentak untuk {len(labs_list)} kamera...")
+    print(f"\n[4/4] Memulai pengambilan video stream serentak untuk {len(labs_list)} kamera...\n", flush=True)
     stream_worker = MultiCameraStreamWorker(
         labs=labs_list,
         channel=args.channel,
@@ -1266,21 +1266,21 @@ def main():
         server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         server_thread.start()
         print(f" * API Server Lokal aktif di http://0.0.0.0:{args.api_port}/")
-        print(f" * Monitor Grid 2x2 MJPEG : http://localhost:{args.api_port}/stream")
+        print(f" * Monitor Grid 2x2 MJPEG : http://localhost:{args.api_port}/stream\n", flush=True)
     except Exception as e:
-        print(f" [PERINGATAN] Gagal bind HTTP server di port {args.api_port}: {e}")
+        print(f" [PERINGATAN] Gagal bind HTTP server di port {args.api_port}: {e}\n", flush=True)
 
     # Inisialisasi Pinggy Tunnel
     pinggy_tunnel = None
     use_pinggy_api = args.pinggy and not args.no_pinggy
     if use_pinggy_api:
-        print(" * Memulai Pinggy SSH Tunnel untuk akses publik API Server...")
+        print(" * Memulai Pinggy SSH Tunnel untuk akses publik API Server...", flush=True)
         pinggy_tunnel = PinggyTunnel(port=args.api_port, token=args.pinggy_token, show_qr=args.qr)
         p_url = pinggy_tunnel.start(wait_for_url=True, timeout=12.0)
         if p_url:
             SHARED_RUNPOD_STATE["public_url"] = p_url
             print(f" >>> URL Publik API Server : {p_url}")
-            print(f" >>> Stream MJPEG 2x2      : {p_url}/stream")
+            print(f" >>> Stream MJPEG 2x2      : {p_url}/stream\n", flush=True)
 
     # Jalankan background telemetry worker
     if args.web_telemetry:
@@ -1358,6 +1358,11 @@ def main():
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
                     cam_state.annotated_frame = disp_frame
                     continue
+
+                # Jika sebelumnya dalam mode tidur dan masa tidur sudah berakhir
+                if cam_state.sleep_until > 0 and curr_t >= cam_state.sleep_until:
+                    print(f"\n[WAKE UP] [{cam_info['name']}] Periode hemat daya selesai. AI Rokok & Wajah kembali AKTIF.\n", flush=True)
+                    cam_state.sleep_until = 0.0
 
                 # -------------------------------------------------------------
                 # 2. Jika tidak dalam mode tidur -> Jalankan Detektor Manusia
@@ -1488,7 +1493,8 @@ def main():
                         if cam_state.pending_face_ident_start is None:
                             cam_state.pending_face_ident_start = curr_t
                             if not is_known_student:
-                                print(f"\n [BUFFER IDENTIFIKASI WAJAH] Merokok >= {args.smoke_sec:.0f}s di {cam_info['name']}. Menunggu pengenalan wajah (buffer 3 detik)...", flush=True)
+                                print(f"\n[BUFFER WAJAH] Merokok terdeteksi >= {args.smoke_sec:.0f}s di [{cam_info['name']}].")
+                                print("               Menunggu pengenalan identitas wajah (buffer 3 detik)...\n", flush=True)
 
                         conf_smoke = float(primary_smoke.get("conf", 0.94)) if primary_smoke else 0.94
                         sim_face = float(violator_sim / 100.0) if violator_sim > 1.0 else float(violator_sim)
@@ -1503,8 +1509,8 @@ def main():
                             if elapsed < 3600.0:
                                 sisa_menit = int((3600.0 - elapsed) // 60)
                                 sisa_detik = int((3600.0 - elapsed) % 60)
-                                print(f"\n [COOLDOWN 1 JAM AKTIF] Mahasiswa '{violator_name}' sudah tercatat melanggar ({int(elapsed//60)}m lalu).", flush=True)
-                                print(f"   -> Sisa waktu jeda cooldown: {sisa_menit} menit {sisa_detik} detik. Laporan baru tidak dikirim.\n", flush=True)
+                                print(f"\n[COOLDOWN 1 JAM] Mahasiswa: {violator_name} (Terakhir melanggar: {int(elapsed//60)}m lalu).")
+                                print(f"                 Sisa waktu jeda cooldown: {sisa_menit}m {sisa_detik}s. Laporan baru tidak dikirim.\n", flush=True)
                                 cam_state.pending_face_ident_start = None
                                 cam_state.last_incident_capture_time = curr_t + 10.0
                                 should_report = False
@@ -1513,9 +1519,9 @@ def main():
                                 status_desc = f"TERVERIFIKASI ({violator_name})"
                         # KONDISI B: Wajah Belum Dikenal setelah 3.0s -> BATALKAN! (Aturan Plan B)
                         elif (curr_t - cam_state.pending_face_ident_start) >= 3.0:
-                            print(f"\n [DIABAIKAN] Pelanggaran rokok terdeteksi di {cam_info['name']}, tetapi wajah pelaku")
-                            print("   tidak dikenal / tidak terdaftar sebagai mahasiswa setelah buffer 3 detik.")
-                            print("   -> Laporan dibatalkan sesuai aturan PLAN B (hanya mahasiswa terdaftar yang dilaporkan).\n", flush=True)
+                            print(f"\n[DIABAIKAN] Pelanggaran rokok terdeteksi di [{cam_info['name']}],")
+                            print("            tetapi wajah pelaku tidak terdaftar / tidak dikenal setelah buffer 3 detik.")
+                            print("            -> Laporan dibatalkan sesuai aturan PLAN B (hanya mahasiswa terdaftar yang dilaporkan).\n", flush=True)
                             cam_state.pending_face_ident_start = None
                             cam_state.last_incident_capture_time = curr_t + 6.0
                             should_report = False
@@ -1612,8 +1618,8 @@ def main():
                         cam_state.status_badge = f"SLEEP ({int(args.sleep_duration_sec)}s)"
                         cam_state.status_desc = f"Tidak ada manusia >{args.idle_sleep_sec:.0f}s -> AI Rokok/Wajah dimatikan {int(args.sleep_duration_sec)}s"
                         wake_hms = datetime.datetime.fromtimestamp(cam_state.sleep_until).strftime("%H:%M:%S")
-                        print(f"\n [HEMAT ENERGI] [{cam_info['name']}] Tidak ada manusia selama {args.idle_sleep_sec:.0f} detik.")
-                        print(f"   -> Model Rokok & Wajah DIMATIKAN selama {int(args.sleep_duration_sec)} detik (hingga {wake_hms} WIB).\n", flush=True)
+                        print(f"\n[HEMAT ENERGI] [{cam_info['name']}] Tidak ada manusia selama {args.idle_sleep_sec:.0f} detik.")
+                        print(f"               Model Rokok & Wajah DIMATIKAN selama {int(args.sleep_duration_sec)} detik (hingga {wake_hms} WIB).\n", flush=True)
 
                     cam_state.annotated_frame = disp_frame
 
@@ -1660,26 +1666,26 @@ def main():
             if is_headless and (curr_t - last_print_time >= 3.0):
                 last_print_time = curr_t
                 now_hms = datetime.datetime.now().strftime("%H:%M:%S")
-                print("=" * 82)
+                print("\n" + "=" * 82)
                 print(f" [PATROLI 4 KAMERA RUNPOD] Waktu: {now_hms} WIB | Total FPS: {current_fps:4.1f}")
                 print("-" * 82)
                 for c_idx, c_st in enumerate(camera_states):
                     conn_str = "ONLINE " if c_st.is_connected else "OFFLINE"
-                    print(f" {c_idx+1}. {c_st.name:<20} | {conn_str} | Badge: {c_st.status_badge:<14} | Info: {c_st.status_desc}")
-                print("=" * 82, flush=True)
+                    print(f"  [{c_idx+1}] {c_st.name:<20} | {conn_str} | Badge: {c_st.status_badge:<14} | Info: {c_st.status_desc}")
+                print("=" * 82 + "\n", flush=True)
 
             # Display GUI jika diaktifkan
             if not is_headless:
                 cv2.imshow(window_name, mosaic_frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key in [ord('q'), ord('Q'), 27]:
-                    print("\n[KELUAR] Tombol Q ditekan.")
+                    print("\n[KELUAR] Tombol Q ditekan.\n", flush=True)
                     break
 
             time.sleep(0.01)
 
     except KeyboardInterrupt:
-        print("\n\n[BERHENTI] Sinyal Ctrl+C diterima. Menghentikan worker...")
+        print("\n\n[BERHENTI] Sinyal Ctrl+C diterima. Menghentikan worker...\n", flush=True)
     finally:
         stream_worker.stop()
         if httpd:
@@ -1691,7 +1697,7 @@ def main():
         if not is_headless:
             try: cv2.destroyAllWindows()
             except Exception: pass
-        print(" * Patroli Plan A telah selesai dihentikan dengan aman.")
+        print("\n * Patroli Plan A telah selesai dihentikan dengan aman.\n", flush=True)
 
 if __name__ == "__main__":
     main()

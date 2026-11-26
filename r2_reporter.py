@@ -127,7 +127,7 @@ def report_violation_to_api(
         "Tidak Dikenal",
         "Unknown"
     ]:
-        print(f" [REPORT CANCELLED] Wajah tidak terdaftar ({student_name}). Laporan pelanggaran dibatalkan.")
+        print(f"\n [REPORT CANCELLED] Wajah tidak terdaftar ({student_name}). Laporan pelanggaran dibatalkan.\n", flush=True)
         return {
             "status_code": 400,
             "success": False,
@@ -211,7 +211,7 @@ def report_violation_to_api(
                     existing = cd_res.json()
                     if isinstance(existing, list) and len(existing) > 0:
                         prev = existing[0]
-                        print(f" [COOLDOWN 1 JAM] {student_name} sudah tercatat melanggar pada {prev.get('created_at')} (ID: {prev.get('id')}). Laporan baru diabaikan.")
+                        print(f"\n [COOLDOWN 1 JAM] {student_name} sudah tercatat melanggar pada {prev.get('created_at')} (ID: {prev.get('id')}). Laporan baru diabaikan.\n", flush=True)
                         return {
                             "status_code": 200,
                             "success": True,
@@ -306,7 +306,7 @@ def capture_and_report_incident(
 
         # 1. Upload ke Cloudflare R2
         public_url = upload_evidence_to_r2(frame_or_path, filename=filename)
-        print(f" [R2] Bukti foto berhasil diunggah ke R2: {public_url}")
+        print(f"\n [R2] Bukti foto berhasil diunggah ke R2: {public_url}", flush=True)
 
         # 2. Kirim laporan ke Web API
         api_result = report_violation_to_api(
@@ -324,11 +324,11 @@ def capture_and_report_incident(
         if api_result.get("success"):
             data_resp = api_result.get("response", {})
             if data_resp.get("cooldown_active"):
-                print(f" [API COOLDOWN] {data_resp.get('message')}")
+                print(f" [API COOLDOWN] {data_resp.get('message')}\n", flush=True)
             else:
-                print(f" [API] Laporan pelanggaran berhasil dicatat ke Dashboard Web.")
+                print(" [API] Laporan pelanggaran berhasil dicatat ke Dashboard Web.\n", flush=True)
         else:
-            print(f" [API WARNING] Gagal sinkronisasi ke Web API: {api_result.get('message') or api_result.get('error')}")
+            print(f" [API WARNING] Gagal sinkronisasi ke Web API: {api_result.get('message') or api_result.get('error')}\n", flush=True)
 
         return {
             "success": api_result.get("success", False),
@@ -336,7 +336,7 @@ def capture_and_report_incident(
             "api_result": api_result,
         }
     except Exception as exc:
-        print(f" [ERROR] Terjadi kesalahan pada proses capture_and_report_incident: {exc}")
+        print(f"\n [ERROR] Terjadi kesalahan pada proses capture_and_report_incident: {exc}\n", flush=True)
         return {
             "success": False,
             "error": str(exc),
