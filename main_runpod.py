@@ -110,8 +110,9 @@ PATH_YUNET_ONNX = os.path.join(MODELS_DIR, "face_detection_yunet_2023mar.onnx")
 PATH_FACENET_ONNX = os.path.join(MODELS_DIR, "facenet.onnx")
 PATH_DATABASE_NPZ = os.path.join(MODELS_DIR, "data_wajah_facenet_mtcnn.npz")
 
-# Default Pinggy MediaMTX Base URL
-DEFAULT_PINGGY_STREAM_BASE = os.environ.get("PINGGY_STREAM_BASE_URL", "https://fdxuqgcmfo.a.pinggy.link").rstrip("/")
+# Default Stream Base URL (MediaMTX Publik di stream.ucim.my.id)
+DEFAULT_STREAM_BASE = os.environ.get("STREAM_BASE_URL", "https://stream.ucim.my.id").rstrip("/")
+DEFAULT_PINGGY_STREAM_BASE = DEFAULT_STREAM_BASE
 
 # Target Kamera Utama: Lab Riset Lantai 5 (Mainstream Cam)
 TARGET_LAB_RISET = {
@@ -125,7 +126,7 @@ TARGET_LAB_RISET = {
     "pass": "EYQMDK",
     "channel_101": "rtsp://admin:EYQMDK@172.20.32.44:554/Streaming/Channels/101",
     "channel_102": "rtsp://admin:EYQMDK@172.20.32.44:554/Streaming/Channels/102",
-    "hls_source": "https://fdxuqgcmfo.a.pinggy.link/cam_lab_riset_lt_5",
+    "hls_source": "https://stream.ucim.my.id/cam_lab_riset_lt_5/",
     "codec_info": "H.265 (HEVC)"
 }
 
@@ -213,8 +214,8 @@ def resolve_camera_urls(cam: Dict, stream_mode: str = "pinggy", pinggy_base: Opt
     """
     Menyusun daftar prioritas URL stream untuk kamera yang bersangkutan:
     1. Custom stream URL (--stream-url jika diberikan pengguna lewat argumen CLI)
-    2. Pinggy MediaMTX Mainstream (link Cam: cam_lab_riset_lt_5)
-    3. HLS Source dari Supabase / Pinggy base
+    2. Endpoint MediaMTX stream.ucim.my.id (Mainstream Cam: https://stream.ucim.my.id/cam_lab_riset_lt_5/)
+    3. HLS Source dari Supabase / Base URL
     4. Fallback ke direct LAN RTSP Channel 101
     """
     candidates = []
@@ -228,7 +229,12 @@ def resolve_camera_urls(cam: Dict, stream_mode: str = "pinggy", pinggy_base: Opt
     if not path:
         path = "cam_lab_riset_lt_5" if channel == "101" else "ecam_lab_riset_lt_5"
 
-    # 2. Kandidat dari Pinggy Base URL
+    # 2. Prioritas Utama: Domain Publik MediaMTX stream.ucim.my.id
+    candidates.append(f"https://stream.ucim.my.id/{path}/")
+    candidates.append(f"https://stream.ucim.my.id/{path}/index.m3u8")
+    candidates.append(f"https://stream.ucim.my.id/{path}")
+
+    # 3. Kandidat dari Base URL konfigurasi
     if pinggy_base and stream_mode == "pinggy":
         base = pinggy_base.rstrip("/")
         if base.startswith("rtsp://"):
@@ -237,21 +243,25 @@ def resolve_camera_urls(cam: Dict, stream_mode: str = "pinggy", pinggy_base: Opt
             if not base.startswith("http://") and not base.startswith("https://"):
                 base = f"https://{base}"
             # MediaMTX HLS stream URL (m3u8 & direct path)
+            candidates.append(f"{base}/{path}/")
             candidates.append(f"{base}/{path}/index.m3u8")
             candidates.append(f"{base}/{path}")
 
-    # 3. Kandidat dari field hls_source Supabase
+    # 4. Kandidat dari field hls_source Supabase
     if cam.get("hls_source") and stream_mode == "pinggy":
         h_url = cam["hls_source"].strip()
         if channel == "101" and "ecam_" in h_url:
             h_url_cam = h_url.replace("ecam_", "cam_")
+            candidates.append(f"{h_url_cam}/")
             candidates.append(f"{h_url_cam}/index.m3u8")
             candidates.append(f"{h_url_cam}")
         candidates.append(h_url)
+        if not h_url.endswith("/"):
+            candidates.append(f"{h_url}/")
         if not h_url.endswith(".m3u8") and not h_url.endswith(".mp4"):
             candidates.append(f"{h_url}/index.m3u8")
 
-    # 4. Fallback ke RTSP Lokal Kampus
+    # 5. Fallback ke RTSP Lokal Kampus
     local_rtsp = cam.get("channel_101") if channel == "101" else cam.get("channel_102")
     if local_rtsp:
         candidates.append(local_rtsp)
@@ -934,11 +944,11 @@ class RunPodHTTPHandler(BaseHTTPRequestHandler):
 # ------------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="E.S.I.S Plan A - RunPod Cloud GPU Terminal Patrol (Lab Riset Lantai 5)")
-    parser.add_argument("--stream-url", type=str, default=None, help="Link streaming langsung dari Pinggy CLI (contoh: https://xxxx.a.pinggy.link/cam_lab_riset_lt_5/index.m3u8)")
+    parser.add_argument("--stream-url", type=str, default="https://stream.ucim.my.id/cam_lab_riset_lt_5/", help="Link streaming langsung (default: https://stream.ucim.my.id/cam_lab_riset_lt_5/)")
     parser.add_argument("--channel", type=str, default="101", choices=["101", "102"], help="Channel stream: 101 (Mainstream Cam HD - Rekomendasi) atau 102 (Substream)")
     parser.add_argument("--mock", action="store_true", help="Gunakan mode mock webcam simulasi")
-    parser.add_argument("--stream-mode", type=str, default="pinggy", choices=["pinggy", "rtsp", "mock"], help="Sumber streaming: pinggy (Default), rtsp (LAN langsung), atau mock")
-    parser.add_argument("--pinggy-stream-base", type=str, default=DEFAULT_PINGGY_STREAM_BASE, help="Base URL Pinggy MediaMTX (contoh: https://xxxx.a.pinggy.link)")
+    parser.add_argument("--stream-mode", type=str, default="pinggy", choices=["pinggy", "rtsp", "mock"], help="Sumber streaming: pinggy / publik (Default), rtsp (LAN langsung), atau mock")
+    parser.add_argument("--pinggy-stream-base", type=str, default=DEFAULT_STREAM_BASE, help="Base URL Streaming MediaMTX (default: https://stream.ucim.my.id)")
     parser.add_argument("--no-supabase-sync", action="store_true", help="Lewati sinkronisasi kamera dari database Supabase")
     parser.add_argument("--person-model", type=str, default="yolov8s", choices=["yolov8s", "yolov8n"], help="Model manusia: yolov8s (Akurat & Stabil) atau yolov8n (Ringan)")
     parser.add_argument("--cigar-model", type=str, default="v3_onnx", help="Model rokok: v3_onnx (YOLO11s ONNX - Default Cloud GPU), v2_onnx, v3, v2")

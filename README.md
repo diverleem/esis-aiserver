@@ -8,10 +8,10 @@ Paket mandiri (*self-contained*) untuk inferensi Cloud GPU di RunPod menggunakan
 3. **Face Detection**: `face_detection_yunet_2023mar.onnx` (YuNet ONNX).
 4. **Face Embedding**: `facenet.onnx` (512-dim embedding) dicocokkan dengan basis data 38 mahasiswa (`data_wajah_facenet_mtcnn.npz`).
 
-## 2. Target Pemantauan
+## 2. Target Pemantauan & Sumber Stream
 - **Lab Riset Lantai 5** (Kamera ID: 38, `cam_lab_riset_lt_5`).
 - Standby 24/7 tanpa auto-skip ke lab lain.
-- Membaca video feed mainstream Pinggy CLI (Channel 101: `cam_lab_riset_lt_5`).
+- **URL Stream Utama**: `https://stream.ucim.my.id/cam_lab_riset_lt_5/` (MediaMTX Mainstream Channel 101).
 
 ## 3. Cara Menjalankan
 
@@ -29,9 +29,9 @@ Atau dari root project:
 run_plan_a_terminal.bat
 ```
 
-### C. Dengan Custom URL Pinggy CLI:
+### C. Dengan Custom URL Stream:
 ```bash
-python main_runpod.py --stream-url https://xxxx.a.pinggy.link/cam_lab_riset_lt_5/index.m3u8
+python main_runpod.py --stream-url https://stream.ucim.my.id/cam_lab_riset_lt_5/
 ```
 
 ### D. Mode Mock Webcam Laptop:

@@ -44,7 +44,7 @@ else:
 echo ""
 echo "[3/3] Memulai Patroli E.S.I.S Plan A..."
 echo "      * Target Kamera : Lab Riset Lantai 5"
-echo "      * Stream Source : Pinggy CLI MediaMTX (Channel 101 Mainstream Cam)"
+echo "      * Stream Source : https://stream.ucim.my.id/cam_lab_riset_lt_5/"
 echo "      * Mode          : Terminal Headless"
 echo "      * API Port      : 8001"
 echo "      * Tekan Ctrl+C untuk keluar kapan saja."
