@@ -23,6 +23,6 @@ echo ===========================================================================
 echo.
 
 cd /d "%~dp0"
-python main_runpod.py --channel 101 --api-port 8001 --no-pinggy %*
+python main_runpod.py --cigar-model v3_onnx --person-model yolov8s --channel 101 --api-port 8001 --no-pinggy %*
 
 pause

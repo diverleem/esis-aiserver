@@ -51,4 +51,4 @@ echo "      * Tekan Ctrl+C untuk keluar kapan saja."
 echo "==============================================================================="
 echo ""
 
-python3 main_runpod.py --cigar-model v3_onnx --person-model yolov8s -
+python3 main_runpod.py --cigar-model v3_onnx --person-model yolov8s --channel 101 --api-port 8001 --headless "$@"

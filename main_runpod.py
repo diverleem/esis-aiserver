@@ -941,7 +941,7 @@ def main():
     parser.add_argument("--pinggy-stream-base", type=str, default=DEFAULT_PINGGY_STREAM_BASE, help="Base URL Pinggy MediaMTX (contoh: https://xxxx.a.pinggy.link)")
     parser.add_argument("--no-supabase-sync", action="store_true", help="Lewati sinkronisasi kamera dari database Supabase")
     parser.add_argument("--person-model", type=str, default="yolov8s", choices=["yolov8s", "yolov8n"], help="Model manusia: yolov8s (Akurat & Stabil) atau yolov8n (Ringan)")
-    parser.add_argument("--cigar-model", type=str, default="v2", help="Model rokok: v2 (Grey v2 .pt), v2_onnx, v3, v3_onnx, v1")
+    parser.add_argument("--cigar-model", type=str, default="v3_onnx", help="Model rokok: v3_onnx (YOLO11s ONNX - Default Cloud GPU), v2_onnx, v3, v2")
     parser.add_argument("--conf-smoke", type=float, default=0.25, help="Ambang batas confidence deteksi rokok (default: 0.25)")
     parser.add_argument("--conf-person", type=float, default=0.20, help="Ambang batas confidence deteksi manusia (default: 0.20)")
     parser.add_argument("--smoke-sec", type=float, default=3.0, help="Durasi rokok kontinu sebelum insiden terkonfirmasi (default: 3.0 detik)")
@@ -970,13 +970,13 @@ def main():
     if not os.path.exists(person_model_path):
         person_model_path = os.path.join(MODELS_DIR, "yolov8n.onnx")
 
-    # Resolusi path model rokok
+    # Resolusi path model rokok (Default Murni ONNX)
     if os.path.exists(args.cigar_model):
         cigar_model_path = os.path.abspath(args.cigar_model)
     else:
-        cigar_model_path = CANDIDATE_ROKOK_MODELS.get(args.cigar_model, PATH_YOLO_ROKOK_PT)
+        cigar_model_path = CANDIDATE_ROKOK_MODELS.get(args.cigar_model, PATH_YOLO_ROKOK_ONNX)
         if not os.path.exists(cigar_model_path):
-            cigar_model_path = PATH_YOLO_ROKOK_PT
+            cigar_model_path = PATH_YOLO_ROKOK_ONNX
 
     print("=" * 80)
     print("   E.S.I.S (Electronic Smoking Identification System) - PLAN A (RUNPOD TERMINAL)")
