@@ -187,7 +187,7 @@ def sync_students_with_supabase():
     if not supa_url or not supa_key:
         return
     try:
-        endpoint = f"{supa_url.rstrip('/')}/rest/v1/mahasiswa?select=nama_lengkap,nim,jurusan,email"
+        endpoint = f"{supa_url.rstrip('/')}/rest/v1/students?select=full_name,student_id,department,email"
         headers = {
             "apikey": supa_key,
             "Authorization": f"Bearer {supa_key}"
@@ -196,13 +196,16 @@ def sync_students_with_supabase():
         if resp.status_code == 200:
             students = resp.json()
             for s in students:
-                name = s.get("nama_lengkap", "").strip()
+                name = (s.get("full_name") or s.get("nama_lengkap") or "").strip()
                 if name:
                     STUDENT_CACHE[name.lower()] = {
                         "nama_lengkap": name,
-                        "nim": s.get("nim", "").strip(),
-                        "jurusan": s.get("jurusan", "").strip(),
-                        "email": s.get("email", "").strip()
+                        "full_name": name,
+                        "nim": (s.get("student_id") or s.get("nim") or "").strip(),
+                        "student_id": (s.get("student_id") or s.get("nim") or "").strip(),
+                        "jurusan": (s.get("department") or s.get("jurusan") or "").strip(),
+                        "department": (s.get("department") or s.get("jurusan") or "").strip(),
+                        "email": (s.get("email") or "").strip()
                     }
             print(f" * Berhasil memuat basis data {len(STUDENT_CACHE)} mahasiswa terdaftar dari Supabase.")
     except Exception as e:
